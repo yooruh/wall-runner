@@ -14,7 +14,7 @@
             <!-- 工具栏 -->
             <HBox styleClass="game-toolbar" alignment="CENTER_LEFT" spacing="6">
                 <Button fx:id="btnPause" text="⏸" styleClass="toolbar-btn" onAction="#onTogglePause"/>
-                <Button fx:id="btnSettings" text="⚙️" styleClass="toolbar-btn" onAction="#onOpenSettings"/>
+                <Button fx:id="btnSettings" text="⚙" styleClass="toolbar-btn" onAction="#onOpenSettings"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Label fx:id="toolbarInfo" text="" styleClass="toolbar-info"/>
                 <Region HBox.hgrow="ALWAYS"/>

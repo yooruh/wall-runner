@@ -32,12 +32,14 @@
     <VBox styleClass="mode-card" spacing="0">
         <Label text="🏠 数据转发（P2P）" styleClass="mode-title"/>
         <Label text="房主浏览器作为主机运行游戏，服务器只转发数据。" styleClass="mode-desc" wrapText="true"/>
-        <Button fx:id="btnCreateRoom" text="创建房间（成为房主）" styleClass="menu-btn, secondary" onAction="#onCreateRoom"/>
         <HBox spacing="8" alignment="CENTER">
-            <padding>
-                <Insets top="10"/>
-            </padding>
-            <TextField fx:id="joinRoomField" promptText="房间号" styleClass="room-input"/>
+            <padding><Insets top="10"/></padding>
+            <TextField fx:id="customRoomField" promptText="自定义房间码（可选）" styleClass="room-input"/>
+            <Button fx:id="btnCreateRoom" text="创建房间" styleClass="menu-btn, secondary" onAction="#onCreateRoom"/>
+        </HBox>
+        <HBox spacing="8" alignment="CENTER">
+            <padding><Insets top="10"/></padding>
+            <TextField fx:id="joinRoomField" promptText="房间码" styleClass="room-input"/>
             <Button fx:id="btnJoinRoom" text="加入房间" styleClass="menu-btn, secondary" onAction="#onJoinRoom"/>
         </HBox>
     </VBox>
@@ -46,6 +48,6 @@
         <padding>
             <Insets top="20"/>
         </padding>
-        <Button fx:id="btnSettings" text="⚙️ 游戏设置" styleClass="menu-btn, ghost" onAction="#onOpenSettings"/>
+        <Button fx:id="btnSettings" text="⚙ 游戏设置" styleClass="menu-btn, ghost" onAction="#onOpenSettings"/>
     </HBox>
 </VBox>

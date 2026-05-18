@@ -1,5 +1,6 @@
 package com.wallrunner.client.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
@@ -10,6 +11,7 @@ import java.net.http.WebSocket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
@@ -20,17 +22,21 @@ import java.util.function.Consumer;
  * 【协议】支持原版消息类型：mode_select, mode_confirmed, room_created, joined_room,
  *        player_joined, player_left, room_closed, error, state, input。
  * 【原则】单例模式，网络 I/O 与业务逻辑解耦，通过回调通知上层。
- * 【修复】2026-05-08:
- *       1. connect() 返回 boolean，调用方可感知连接成败。
- *       2. 增加消息缓存队列，避免 GameController 尚未设置回调时丢失房间消息。
- *       3. WsListener 直接提取并保存 roomId / playerId 等关键状态。
+ * 【修复】2026-05-10:
+ *       1. WebSocket 文本消息分片处理：HttpClient.WebSocket 对大 JSON 会拆分为多帧，
+ *          使用 StringBuilder 累积分片，等 last=true 时再完整解析。
+ *       2. clientId 改为纯内存 UUID（移除 Preferences 持久化），
+ *          同一台机器开多个窗口时各自拥有独立 ID，避免控制同一角色。
+ *       3. ObjectMapper 配置 FAIL_ON_UNKNOWN_PROPERTIES = false，增强兼容性。
+ *       4. state 消息 payload 兼容 String（Relay）和 Map（Dedicated）两种格式。
  */
 public class WebSocketClientService {
 
     private static final WebSocketClientService INSTANCE = new WebSocketClientService();
     public static WebSocketClientService getInstance() { return INSTANCE; }
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private WebSocket webSocket;
     private boolean connected = false;
@@ -47,6 +53,9 @@ public class WebSocketClientService {
     private double timeBonusInterval = 5.0;
     private int timeBonusPoints = 10;
 
+    // 【修复】纯内存 clientId，每个进程独立，多窗口不冲突
+    private final String clientId = UUID.randomUUID().toString();
+
     // 回调
     private Consumer<GameState> onStateReceived;
     private Consumer<Map<String, Object>> onMessage;
@@ -56,13 +65,15 @@ public class WebSocketClientService {
 
     private WebSocketClientService() {}
 
+    public String getClientId() { return clientId; }
+
     public boolean connect(String uri) {
         try {
             webSocket = httpClient.newWebSocketBuilder()
                     .buildAsync(URI.create(uri), new WsListener())
                     .join();
             connected = true;
-            System.out.println("[WS Client] Connected");
+            System.out.println("[WS Client] Connected, clientId=" + clientId);
             return true;
         } catch (Exception e) {
             System.err.println("[WS Client] Connect failed: " + e.getMessage());
@@ -85,24 +96,37 @@ public class WebSocketClientService {
 
     public boolean isConnected() { return connected; }
 
-    // 原版协议：mode_select
+    // 协议：mode_select
     public void joinDedicated(String name) {
-        send(Map.of("type", "mode_select", "mode", "dedicated", "name", name));
+        send(Map.of("type", "mode_select", "mode", "dedicated", "name", name, "clientId", clientId));
     }
 
     public void createRoom(String name) {
-        send(Map.of("type", "mode_select", "mode", "relay", "role", "create", "name", name));
+        send(Map.of("type", "mode_select", "mode", "relay", "role", "create", "name", name, "clientId", clientId));
+    }
+
+    public void createRoom(String name, String customRoomId) {
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "mode_select");
+        msg.put("mode", "relay");
+        msg.put("role", "create");
+        msg.put("name", name);
+        msg.put("clientId", clientId);
+        if (customRoomId != null && !customRoomId.isEmpty()) {
+            msg.put("roomId", customRoomId);
+        }
+        send(msg);
     }
 
     public void joinRoom(String roomId, String name) {
-        send(Map.of("type", "mode_select", "mode", "relay", "role", "join", "roomId", roomId, "name", name));
+        send(Map.of("type", "mode_select", "mode", "relay", "role", "join", "roomId", roomId, "name", name, "clientId", clientId));
     }
 
     public void sendInput(String action) {
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "input");
         msg.put("action", action);
-        if (myId != null) msg.put("playerId", myId);
+        msg.put("playerId", clientId);
         send(msg);
     }
 
@@ -129,7 +153,6 @@ public class WebSocketClientService {
 
     public void setOnMessage(Consumer<Map<String, Object>> callback) {
         this.onMessage = callback;
-        // 消费缓存的消息
         if (callback != null && !pendingMessages.isEmpty()) {
             List<Map<String, Object>> copy = new ArrayList<>(pendingMessages);
             pendingMessages.clear();
@@ -160,6 +183,9 @@ public class WebSocketClientService {
     public void setTimeBonusPoints(int v) { this.timeBonusPoints = v >= 0 ? v : 10; }
 
     private class WsListener implements WebSocket.Listener {
+        // 【关键修复】累积分片消息，处理大 JSON 被拆分为多帧的情况
+        private final StringBuilder textBuffer = new StringBuilder();
+
         @Override
         public void onOpen(WebSocket webSocket) {
             webSocket.request(1);
@@ -167,8 +193,19 @@ public class WebSocketClientService {
 
         @Override
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            textBuffer.append(data);
+            if (last) {
+                String fullMessage = textBuffer.toString();
+                textBuffer.setLength(0); // 清空缓冲区
+                handleMessage(fullMessage);
+            }
+            webSocket.request(1);
+            return null;
+        }
+
+        private void handleMessage(String fullMessage) {
             try {
-                Map<String, Object> msg = mapper.readValue(data.toString(), Map.class);
+                Map<String, Object> msg = mapper.readValue(fullMessage, Map.class);
                 String type = (String) msg.get("type");
 
                 // 先提取关键状态，即使回调尚未设置也不丢失
@@ -176,31 +213,35 @@ public class WebSocketClientService {
                     String roomId = (String) msg.get("roomId");
                     if (roomId != null) {
                         currentRoomId = roomId;
-                        myId = "local";
+                        myId = clientId;
                     }
                 } else if ("joined_room".equals(type)) {
                     String roomId = (String) msg.get("roomId");
                     String playerId = (String) msg.get("playerId");
                     if (roomId != null) currentRoomId = roomId;
                     if (playerId != null) myId = playerId;
+                    else myId = clientId;
                 } else if ("mode_confirmed".equals(type)) {
                     String playerId = (String) msg.get("playerId");
                     if (playerId != null) myId = playerId;
-                } else if ("error".equals(type)) {
-                    // 错误消息也保留，让上层处理
+                    else myId = clientId;
                 }
 
                 if ("state".equals(type) && onStateReceived != null) {
-                    String payloadJson = mapper.writeValueAsString(msg.get("payload"));
+                    Object payload = msg.get("payload");
+                    String payloadJson;
+                    if (payload instanceof String) {
+                        payloadJson = (String) payload;
+                    } else {
+                        payloadJson = mapper.writeValueAsString(payload);
+                    }
                     GameState state = mapper.readValue(payloadJson, GameState.class);
                     onStateReceived.accept(state);
                 } else if (onMessage != null) {
                     onMessage.accept(msg);
                 } else {
-                    // 回调尚未设置，缓存非 state 消息
                     if (!"state".equals(type)) {
                         pendingMessages.add(msg);
-                        // 防止缓存无限增长
                         if (pendingMessages.size() > 50) {
                             pendingMessages.remove(0);
                         }
@@ -208,9 +249,9 @@ public class WebSocketClientService {
                 }
             } catch (Exception e) {
                 System.err.println("[WS Client] Parse error: " + e.getMessage());
+                // 【调试】打印前 200 字符帮助定位问题
+                System.err.println("[WS Client] Raw: " + fullMessage.substring(0, Math.min(200, fullMessage.length())));
             }
-            webSocket.request(1);
-            return null;
         }
 
         @Override

@@ -8,6 +8,8 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Button;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 
 /**
  * 【模块】client / controller
@@ -19,16 +21,20 @@ import javafx.scene.control.Button;
  *       1. 进入公共服务器前检查连接是否成功，失败时阻止切场景并恢复按钮。
  *       2. 创建/加入房间前同样检查连接状态。
  *       3. 统一使用 ClientApplication 的窗口尺寸切换，避免窗口忽大忽小。
+ *       4. 支持自定义房间码（大写字母+数字），创建后显示并可复制。
  */
 public class MenuController {
 
     @FXML private TextField playerNameField;
     @FXML private TextField joinRoomField;
+    @FXML private TextField customRoomField;
     @FXML private Button btnSingle;
     @FXML private Button btnDedicated;
     @FXML private Button btnCreateRoom;
     @FXML private Button btnJoinRoom;
     @FXML private Button btnSettings;
+    @FXML private Button btnCopyRoom;
+    @FXML private javafx.scene.control.Label roomCodeLabel;
 
     private final WebSocketClientService wsService = WebSocketClientService.getInstance();
     private final StateManager stateManager = StateManager.getInstance();
@@ -40,6 +46,14 @@ public class MenuController {
             stateManager.saveName(val);
             wsService.setPlayerName(val);
         });
+        if (btnCopyRoom != null) {
+            btnCopyRoom.setVisible(false);
+            btnCopyRoom.setManaged(false);
+        }
+        if (roomCodeLabel != null) {
+            roomCodeLabel.setVisible(false);
+            roomCodeLabel.setManaged(false);
+        }
     }
 
     private String getName() {
@@ -91,6 +105,12 @@ public class MenuController {
     @FXML
     private void onCreateRoom() {
         saveName();
+        String customId = customRoomField != null ? customRoomField.getText().trim().toUpperCase() : "";
+        // 验证自定义房间码格式：仅大写字母和数字
+        if (!customId.isEmpty() && !customId.matches("[A-Z0-9]+")) {
+            showAlert("房间码只能包含大写字母和数字");
+            return;
+        }
         setButtonsDisabled(true);
         if (!wsService.isConnected()) {
             boolean ok = wsService.connect("ws://localhost:8080/ws/game");
@@ -100,7 +120,7 @@ public class MenuController {
                 return;
             }
         }
-        wsService.createRoom(getName());
+        wsService.createRoom(getName(), customId.isEmpty() ? null : customId);
         ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
         GameController.setMode(GameController.Mode.RELAY_HOST);
     }
@@ -110,6 +130,10 @@ public class MenuController {
         String roomId = joinRoomField.getText().trim().toUpperCase();
         if (roomId.isEmpty()) {
             showAlert("请输入房间号");
+            return;
+        }
+        if (!roomId.matches("[A-Z0-9]+")) {
+            showAlert("房间码只能包含大写字母和数字");
             return;
         }
         saveName();
@@ -128,12 +152,24 @@ public class MenuController {
     }
 
     @FXML
+    private void onCopyRoomCode() {
+        String roomId = wsService.getCurrentRoomId();
+        if (roomId != null && !roomId.isEmpty()) {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent content = new ClipboardContent();
+            content.putString(roomId);
+            clipboard.setContent(content);
+            showAlert("房间码已复制到剪贴板: " + roomId);
+        }
+    }
+
+    @FXML
     private void onOpenSettings() {
         ClientApplication.switchScene("/com/wallrunner/client/view/settings.fxml");
     }
 
     private void showAlert(String msg) {
-        Alert alert = new Alert(Alert.AlertType.WARNING);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("提示");
         alert.setHeaderText(null);
         alert.setContentText(msg);

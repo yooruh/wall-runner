@@ -1,5 +1,6 @@
 package com.wallrunner.server.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
@@ -20,7 +21,8 @@ public class RelayService {
 
     private final RoomManager roomManager;
     private final SessionManager sessionManager;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public RelayService(RoomManager roomManager, SessionManager sessionManager) {
         this.roomManager = roomManager;
@@ -33,10 +35,26 @@ public class RelayService {
         return roomId;
     }
 
+    public String createRoom(String hostSessionId, String customRoomId) {
+        if (customRoomId != null && !customRoomId.isEmpty()) {
+            if (roomManager.isRoomExists(customRoomId)) {
+                return null; // 重名
+            }
+            String roomId = roomManager.createRoom(customRoomId, hostSessionId);
+            sessionManager.bindRoom(hostSessionId, roomId);
+            return roomId;
+        }
+        return createRoom(hostSessionId);
+    }
+
     public boolean joinRoom(String roomId, Player player, WebSocketSession session) {
         boolean ok = roomManager.joinRoom(roomId, player);
         if (ok) {
             sessionManager.bindRoom(session.getId(), roomId);
+            // 【修复】2026-05-10: 不再发送服务端过时的 GameState 给新机。
+            // 服务端 RoomManager 中的状态与房主权威状态完全脱节，
+            // 发送它会导致新机收到 phase="menu" 的过时状态而卡死。
+            // 改由房主在收到 player_joined 后主动广播权威状态。
         }
         return ok;
     }

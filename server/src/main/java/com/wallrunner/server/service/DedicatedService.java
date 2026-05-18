@@ -1,5 +1,6 @@
 package com.wallrunner.server.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
@@ -19,13 +20,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * 【原则】物理计算委托给 GamePhysics（Y层），本类仅做调度与网络 I/O（X层）。
  * 【修复】2026-05-08: getOrCreateRoom() 使用 RoomManager.createRoom(roomId, hostSessionId)
  *        确保房间 ID 在 RoomManager 中真实存在，避免 getRoom(roomId) 返回 null 导致 NPE。
+ * 【修复】2026-05-10: handleInput 处理 "start" 时重新激活 activeDedicated，
+ *        解决 gameover 后无法重新开始的问题。
  */
 @Service
 public class DedicatedService {
 
     private final RoomManager roomManager;
     private final SessionManager sessionManager;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final Map<String, Boolean> activeDedicated = new ConcurrentHashMap<>();
     private int roomCounter = 0;
 
@@ -80,6 +84,7 @@ public class DedicatedService {
         if ("start".equals(action)) {
             if ("menu".equals(state.getPhase()) || "gameover".equals(state.getPhase())) {
                 GamePhysics.startGame(state);
+                activeDedicated.put(roomId, true); // 【修复】重新激活游戏循环
             }
         } else {
             GamePhysics.handleInput(p, action);

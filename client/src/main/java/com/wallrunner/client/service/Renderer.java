@@ -19,10 +19,9 @@ import java.util.List;
  * 【代号】Z
  * 【职责】Canvas 渲染管线。
  * 【重构】2026-05-08: render 接收外部 cameraY，支持每个玩家独立视角。
- * 【修复】2026-05-08:
- *       1. FPS 显示遵循 showFps 参数，不再强制绘制。
- *       2. 修复 FPS 文字与背景框错位问题，文字现在完全位于框内。
- *       3. FPS 文字格式改为 "FPS: XX"，语义更明确。
+ * 【修复】2026-05-10:
+ *       1. render 方法新增 localPlayerId 参数，彻底替换硬编码 "local"，
+ *          支持客户端持久化 ID 作为本地玩家标识。
  */
 public class Renderer {
 
@@ -38,7 +37,7 @@ public class Renderer {
         this.gc = canvas.getGraphicsContext2D();
     }
 
-    public void render(GameState state, String mode, double renderCameraY, boolean showFps) {
+    public void render(GameState state, String mode, double renderCameraY, boolean showFps, String localPlayerId) {
         if (gc == null || state == null) return;
 
         double w = canvas.getWidth();
@@ -51,9 +50,9 @@ public class Renderer {
         drawWalls(camY);
         drawObstacles(state, camY);
         drawParticles(camY);
-        drawPlayers(state, camY);
+        drawPlayers(state, camY, localPlayerId);
 
-        Player me = state.getPlayers().get("local");
+        Player me = state.getPlayers().get(localPlayerId);
         drawHUD(me);
         if (showFps) {
             drawFPS();
@@ -182,14 +181,15 @@ public class Renderer {
         }
     }
 
-    private void drawPlayers(GameState state, double cameraY) {
+    private void drawPlayers(GameState state, double cameraY, String localPlayerId) {
         for (Player p : state.getPlayers().values()) {
             if (!p.isActive()) continue;
             double sy = p.getY() - cameraY;
             if (sy < -100 || sy > 700) continue;
 
             String bodyColor = p.getColor() != null ? p.getColor() : "#4ecca3";
-            boolean isMe = "local".equals(p.getId());
+            // 【修复】使用传入的 localPlayerId 判断"是否是我"，替换硬编码 "local"
+            boolean isMe = p.getId().equals(localPlayerId);
             boolean isPaused = p.isPaused();
 
             gc.save();
@@ -222,16 +222,16 @@ public class Renderer {
             }
 
             gc.setFill(Color.web(isPaused ? "rgba(255,255,255,0.6)" : "white"));
-            gc.setFont(Font.font("Arial", 11));
+            gc.setFont(Font.font("Segoe UI Emoji", 11));
             gc.fillText(p.getName() != null ? p.getName() : "玩家", p.getX() + p.getWidth() / 2, sy - 8);
 
             if (isPaused) {
                 gc.setFill(Color.web("rgba(255,255,255,0.8)"));
-                gc.setFont(Font.font("Arial", 10));
+                gc.setFont(Font.font("Segoe UI Emoji", 10));
                 gc.fillText("暂停", p.getX() + p.getWidth() / 2, sy - 20);
             }
 
-            gc.setFont(Font.font("Arial", 10));
+            gc.setFont(Font.font("Segoe UI Emoji", 10));
             gc.setFill(Color.web("#aaa"));
             gc.fillText(p.getScore() + "分", p.getX() + p.getWidth() / 2, sy - (isPaused ? 32 : 18));
 
@@ -242,7 +242,7 @@ public class Renderer {
     private void drawHUD(Player me) {
         if (me == null) return;
         gc.setFill(Color.web("white"));
-        gc.setFont(Font.font("Arial", 18));
+        gc.setFont(Font.font("Segoe UI Emoji", 18));
         gc.fillText("分数: " + me.getScore(), 15, 28);
 
         // 高度显示：若有中途加入偏移，在右侧标注
@@ -274,7 +274,7 @@ public class Renderer {
         gc.setFill(Color.web("rgba(0,0,0,0.6)"));
         gc.fillRect(320, 4, 76, 20);
         gc.setFill(Color.web("#4ecca3"));
-        gc.setFont(Font.font("monospace", 12));
+        gc.setFont(Font.font("Segoe UI Emoji", 12));
         gc.fillText(fpsText, 325, 18);
     }
 
@@ -282,16 +282,16 @@ public class Renderer {
         gc.setFill(Color.web("rgba(0,0,0,0.7)"));
         gc.fillRect(0, 0, GameConstants.CANVAS_WIDTH, GameConstants.CANVAS_HEIGHT);
         gc.setFill(Color.web("#4ecca3"));
-        gc.setFont(Font.font("Arial", 28));
+        gc.setFont(Font.font("Segoe UI Emoji", 28));
         gc.fillText("relay_host".equals(mode) ? "等待开始" : "墙间跑酷",
                 GameConstants.CANVAS_WIDTH / 2, 260);
         gc.setFill(Color.web("white"));
-        gc.setFont(Font.font("Arial", 16));
+        gc.setFont(Font.font("Segoe UI Emoji", 16));
         long count = state.getPlayers().values().stream().filter(Player::isActive).count();
         gc.fillText("在线玩家: " + count + " 人", GameConstants.CANVAS_WIDTH / 2, 300);
         gc.fillText("点击或按跳跃键开始", GameConstants.CANVAS_WIDTH / 2, 330);
         if ("relay_host".equals(mode)) {
-            gc.setFont(Font.font("Arial", 14));
+            gc.setFont(Font.font("Segoe UI Emoji", 14));
             gc.fillText("你是房主，其他玩家加入后即可开始", GameConstants.CANVAS_WIDTH / 2, 360);
         }
     }
@@ -300,19 +300,19 @@ public class Renderer {
         gc.setFill(Color.web("rgba(0,0,0,0.7)"));
         gc.fillRect(0, 0, GameConstants.CANVAS_WIDTH, GameConstants.CANVAS_HEIGHT);
         gc.setFill(Color.web("#ff6b6b"));
-        gc.setFont(Font.font("Arial", 28));
+        gc.setFont(Font.font("Segoe UI Emoji", 28));
         if (iAmDead && !"gameover".equals(state.getPhase())) {
             gc.fillText("你已死亡", GameConstants.CANVAS_WIDTH / 2, 240);
             gc.setFill(Color.web("white"));
-            gc.setFont(Font.font("Arial", 16));
+            gc.setFont(Font.font("Segoe UI Emoji", 16));
             gc.fillText("可继续观战其他玩家", GameConstants.CANVAS_WIDTH / 2, 275);
-            gc.setFont(Font.font("Arial", 14));
+            gc.setFont(Font.font("Segoe UI Emoji", 14));
             gc.fillText("等待房主重新开始下一局", GameConstants.CANVAS_WIDTH / 2, 305);
         } else {
             gc.fillText("relay_host".equals(mode) ? "游戏结束" : "全军覆没",
                     GameConstants.CANVAS_WIDTH / 2, 240);
             gc.setFill(Color.web("white"));
-            gc.setFont(Font.font("Arial", 18));
+            gc.setFont(Font.font("Segoe UI Emoji", 18));
             Player best = null;
             for (Player p : state.getPlayers().values()) {
                 if (best == null || p.getScore() > best.getScore()) best = p;
@@ -321,7 +321,7 @@ public class Renderer {
                 gc.fillText("最高分: " + best.getName() + " (" + best.getScore() + "分)",
                         GameConstants.CANVAS_WIDTH / 2, 280);
             }
-            gc.setFont(Font.font("Arial", 15));
+            gc.setFont(Font.font("Segoe UI Emoji", 15));
             gc.fillText("点击或按跳跃键重新开始", GameConstants.CANVAS_WIDTH / 2, 320);
         }
     }

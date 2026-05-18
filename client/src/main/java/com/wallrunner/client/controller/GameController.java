@@ -32,14 +32,17 @@ import java.util.prefs.Preferences;
  * 【模块】client / controller
  * 【代号】Z
  * 【职责】游戏场景主控制器。
- * 【重构】2026-05-08:
- *       1. 空格=跳跃/开始，ESC=暂停。
- *       2. 单人模式用玩家自身摄像机渲染，实现被阻挡碾压效果。
- *       3. 设置关闭后自动重新加载按键绑定。
- *       4. 【修复】禁用工具栏按钮焦点遍历，防止空格键触发暂停按钮。
- *       5. 【修复】根据实际连接状态初始化 connStatus，避免离线仍显示已连接。
- *       6. 【修复】初始化时读取已缓存的 roomId，解决开房后房间码不显示。
- *       7. 【修复】排行榜仅在多人在线时显示，单人模式自动隐藏。
+ * 【架构】三层分离：
+ *       - 网络层 (WebSocketClientService): 收发消息
+ *       - 物理层 (StateManager + LocalPhysicsEngine): 本地状态与物理计算
+ *       - 渲染层 (Renderer): Canvas 绘制
+ * 【原则】所有模式均运行本地物理，网络状态仅用于校正，确保画面流畅。
+ * 【修复】2026-05-10:
+ *       1. 所有模式（含Dedicated/RelayGuest）均运行本地物理，解决客机画面卡顿。
+ *       2. P2P房主每3帧广播一次权威状态，确保客机同步。
+ *       3. 网络状态统一走reconcile，平滑校正避免画面跳变。
+ *       4. 消息处理提取为独立方法，消除巨型switch/if-else。
+ *       5. 房间号显示统一初始化，房主/客机逻辑清晰分离。
  */
 public class GameController {
 
@@ -63,388 +66,318 @@ public class GameController {
     @FXML private VBox settingsOverlay;
     @FXML private VBox leaderboard;
 
-    private final WebSocketClientService wsService = WebSocketClientService.getInstance();
-    private final StateManager stateManager = StateManager.getInstance();
+    private final WebSocketClientService ws = WebSocketClientService.getInstance();
+    private final StateManager sm = StateManager.getInstance();
     private final Renderer renderer = new Renderer();
-    private final InputService inputService = new InputService();
-    private final GameLoopService gameLoop = new GameLoopService();
-    private final LocalPhysicsEngine localEngine = new LocalPhysicsEngine();
+    private final InputService input = new InputService();
+    private final GameLoopService loop = new GameLoopService();
+    private final LocalPhysicsEngine physics = new LocalPhysicsEngine();
     private final Predictor predictor = new Predictor();
 
     private boolean paused = false;
     private boolean initialized = false;
     private boolean settingsLoaded = false;
-    private String currentModeStr = "single";
+    private String modeStr = "single";
+    private int hostBroadcastCounter = 0; // P2P房主广播计数器
+
+    // ===== 身份查询 =====
+
+    private String localId() {
+        String myId = ws.getMyId();
+        return (myId != null && !myId.isEmpty()) ? myId : sm.getLocalPlayerId();
+    }
+
+    private boolean isHost()     { return currentMode == Mode.RELAY_HOST; }
+    private boolean isGuest()    { return currentMode == Mode.DEDICATED || currentMode == Mode.RELAY_GUEST; }
+    private boolean isOffline()  { return currentMode == Mode.SINGLE; }
+
+    // ===== 生命周期 =====
 
     @FXML
     private void initialize() {
         renderer.bindCanvas(gameCanvas);
+        disableButtonFocus();
+        focusCanvas();
 
-        // 【关键修复】禁用工具栏按钮的焦点遍历，防止空格键触发按钮默认行为
-        if (btnPause != null) btnPause.setFocusTraversable(false);
-        if (btnSettings != null) btnSettings.setFocusTraversable(false);
-        if (btnHome != null) btnHome.setFocusTraversable(false);
-
-        // 锁定焦点到 Canvas，确保所有键盘事件都走 InputService
-        Platform.runLater(() -> {
-            if (gameCanvas != null) {
-                gameCanvas.setFocusTraversable(true);
-                gameCanvas.requestFocus();
-            }
-        });
-
-        wsService.setOnStateReceived(this::onNetworkState);
-        wsService.setOnMessage(this::onNetworkMessage);
+        ws.setOnStateReceived(this::onState);
+        ws.setOnMessage(this::onMessage);
 
         gameCanvas.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
             if (!initialized) return;
-            inputService.onCanvasClick();
+            input.onCanvasClick();
             gameCanvas.requestFocus();
         });
 
-        if (currentMode == Mode.SINGLE) currentModeStr = "single";
-        else if (currentMode == Mode.DEDICATED) currentModeStr = "dedicated";
-        else if (currentMode == Mode.RELAY_HOST) currentModeStr = "relay_host";
-        else if (currentMode == Mode.RELAY_GUEST) currentModeStr = "relay_guest";
+        modeStr = switch (currentMode) {
+            case SINGLE      -> "single";
+            case DEDICATED   -> "dedicated";
+            case RELAY_HOST  -> "relay_host";
+            case RELAY_GUEST -> "relay_guest";
+        };
 
-        if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
-            stateManager.initLocalState(wsService.getPlayerName());
-            stateManager.getState().setPhase("menu");
-            // 同步时间奖励设置
-            stateManager.getState().setTimeBonusInterval(wsService.getTimeBonusInterval());
-            stateManager.getState().setTimeBonusPoints(wsService.getTimeBonusPoints());
+        sm.setLocalPlayerId(ws.getClientId());
+
+        // 离线或房主：立即初始化本地权威状态
+        if (isOffline() || isHost()) {
+            sm.initLocalState(ws.getPlayerName());
+            GameState s = sm.getState();
+            s.setPhase("menu");
+            s.setTimeBonusInterval(ws.getTimeBonusInterval());
+            s.setTimeBonusPoints(ws.getTimeBonusPoints());
         }
 
-        // 【修复】根据实际模式与连接状态初始化状态栏，避免离线仍显示"已连接"
-        initConnectionStatus();
-
-        // 【修复】若 WebSocketClientService 已缓存房间号，立即显示
-        String cachedRoomId = wsService.getCurrentRoomId();
-        if (cachedRoomId != null && !cachedRoomId.isEmpty() && roomIdDisplay != null) {
-            roomIdDisplay.setText("房间: " + cachedRoomId);
-        }
-
-        // 【修复】单人模式隐藏排行榜，多人模式准备显示
-        if (leaderboard != null) {
-            boolean multiPlayer = currentMode != Mode.SINGLE;
-            leaderboard.setVisible(multiPlayer);
-            leaderboard.setManaged(multiPlayer);
-        }
-    }
-
-    private void initConnectionStatus() {
-        if (connStatus == null) return;
-        switch (currentMode) {
-            case SINGLE:
-                updateConnStatus("本地游戏", false);
-                break;
-            case DEDICATED:
-                if (wsService.isConnected()) {
-                    updateConnStatus("● 已连接", true);
-                } else {
-                    updateConnStatus("● 未连接", false);
-                }
-                break;
-            case RELAY_HOST:
-            case RELAY_GUEST:
-                if (wsService.isConnected()) {
-                    updateConnStatus("● 已连接", true);
-                } else {
-                    updateConnStatus("● 连接中...", false);
-                }
-                break;
-        }
+        initConnStatus();
+        initRoomDisplay();
+        initLeaderboard();
     }
 
     public void onSceneReady(Scene scene) {
         if (initialized) return;
         initialized = true;
-
-        inputService.attach(scene);
-        inputService.setOnAction(this::handleAction);
-        inputService.setOnSystem(this::handleSystem);
-        reloadKeyBindings();
-
-        gameLoop.setOnTick(this::onGameTick);
-        gameLoop.start();
-
-        Platform.runLater(() -> {
-            if (gameCanvas != null) gameCanvas.requestFocus();
-        });
+        input.attach(scene);
+        input.setOnAction(this::onAction);
+        input.setOnSystem(this::onSystem);
+        reloadKeys();
+        loop.setOnTick(this::onTick);
+        loop.start();
+        focusCanvas();
     }
 
-    private void reloadKeyBindings() {
-        Preferences prefs = Preferences.userNodeForPackage(SettingsController.class);
-        String keysStr = prefs.get("jump_keys", "SPACE");
-        Set<KeyCode> keys = new java.util.LinkedHashSet<>();
-        if (keysStr != null && !keysStr.isEmpty()) {
-            for (String k : keysStr.split(",")) {
-                try {
-                    keys.add(KeyCode.valueOf(k.trim()));
-                } catch (IllegalArgumentException ignored) {}
+    // ===== 每帧主循环 =====
+
+    private void onTick(double deltaMs) {
+        if (paused) return;
+        GameState state = sm.getState();
+        if (state == null) return;
+
+        // 【核心修复】所有模式均运行本地物理，确保画面流畅。
+        // 网络状态仅用于校正（见 onState），不阻塞渲染。
+        physics.tick(state);
+
+        // P2P房主：定期广播权威状态（每3帧一次，约50ms，平衡同步与带宽）
+        if (isHost()) {
+            hostBroadcastCounter++;
+            if (hostBroadcastCounter >= 3) {
+                hostBroadcastCounter = 0;
+                ws.sendState(state);
             }
         }
-        if (keys.isEmpty()) keys.add(KeyCode.SPACE);
-        inputService.setJumpKeys(keys);
+
+        // 渲染必须在JavaFX线程
+        Platform.runLater(() -> renderFrame(state));
     }
 
-    private void handleAction(String action) {
+    private void renderFrame(GameState state) {
+        Player me = state.getPlayers().get(localId());
+        double camY = (me != null && me.getCameraY() != 0) ? me.getCameraY() : state.getCameraY();
+        renderer.render(state, modeStr, camY, ws.isShowFps(), localId());
+        updateLeaderboard(state);
+        if ("gameover".equals(state.getPhase())) {
+            showGameOver(state);
+        }
+    }
+
+    // ===== 网络状态校正 =====
+
+    private void onState(GameState remote) {
+        // 【核心修复】所有网络模式统一走reconcile，平滑校正本地状态。
+        // 首次reconcile时若本地玩家缺失，StateManager会自动从权威状态复制。
+        sm.reconcile(remote);
+    }
+
+    // ===== 用户输入 =====
+
+    private void onAction(String action) {
         if (paused) return;
-        GameState state = stateManager.getState();
+        GameState state = sm.getState();
         if (state == null) return;
 
         String phase = state.getPhase();
         if ("menu".equals(phase) || "gameover".equals(phase)) {
-            if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
+            if (isOffline() || isHost()) {
                 GamePhysics.startGame(state);
             } else {
-                wsService.sendInput("start");
+                ws.sendInput("start");
             }
-            Platform.runLater(() -> {
-                pauseOverlay.setVisible(false);
-                pauseOverlay.setManaged(false);
-                gameOverOverlay.setVisible(false);
-                gameOverOverlay.setManaged(false);
-            });
+            hideOverlays();
         } else if ("playing".equals(phase)) {
-            Player local = state.getPlayers().get("local");
-            if (local != null && !local.isPaused()) {
-                if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
-                    GamePhysics.handleInput(local, "jump");
-                    renderer.spawnJumpParticles(local.getX(), local.getY(), local.getSide());
+            Player me = state.getPlayers().get(localId());
+            if (me != null && !me.isPaused()) {
+                if (isOffline() || isHost()) {
+                    GamePhysics.handleInput(me, "jump");
+                    renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide());
                 } else if (currentMode == Mode.DEDICATED) {
-                    wsService.sendInput("jump");
-                    predictor.predict(state, "local", "jump");
-                    renderer.spawnJumpParticles(local.getX(), local.getY(), local.getSide());
-                } else if (currentMode == Mode.RELAY_GUEST) {
-                    wsService.sendInput("jump");
+                    ws.sendInput("jump");
+                    predictor.predict(state, localId(), "jump");
+                    renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide());
+                } else { // RELAY_GUEST
+                    ws.sendInput("jump");
                 }
+            } else if (me == null && isGuest()) {
+                // 玩家尚未同步，先发送输入确保不丢失
+                ws.sendInput("jump");
             }
         }
     }
 
-    private void handleSystem(String cmd) {
-        if ("toggle_pause".equals(cmd)) {
-            onTogglePause();
-        } else if ("close_settings".equals(cmd)) {
-            onCloseSettings();
+    private void onSystem(String cmd) {
+        switch (cmd) {
+            case "toggle_pause" -> onTogglePause();
+            case "close_settings" -> onCloseSettings();
         }
     }
 
-    private void onGameTick(double deltaMs) {
-        if (paused) return;
-        GameState state = stateManager.getState();
-        if (state == null) return;
+    // ===== 网络消息分发 =====
 
-        if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
-            localEngine.tick(state);
+    private void onMessage(Map<String, Object> msg) {
+        switch ((String) msg.get("type")) {
+            case "mode_confirmed" -> onModeConfirmed(msg);
+            case "room_created"   -> onRoomCreated(msg);
+            case "joined_room"    -> onJoinedRoom(msg);
+            case "player_joined"  -> onPlayerJoined(msg);
+            case "player_left"    -> onPlayerLeft(msg);
+            case "error"          -> onError(msg);
+            case "room_closed"    -> onRoomClosed();
+            case "input"          -> onRelayInput(msg);
         }
+    }
 
+    private void onModeConfirmed(Map<String, Object> msg) {
+        String pid = (String) msg.get("playerId");
+        ws.setMyId(pid);
+        sm.setLocalPlayerId(pid);
+        // 客机不预创建状态，等待权威state通过reconcile同步
+        if (isOffline() || isHost()) {
+            sm.initLocalState(ws.getPlayerName());
+        }
+        setConnStatus("● 已连接", true);
+    }
+
+    private void onRoomCreated(Map<String, Object> msg) {
+        String rid = (String) msg.get("roomId");
+        ws.setMyId(ws.getClientId());
+        ws.setCurrentRoomId(rid);
+        Platform.runLater(() -> updateRoomDisplay(rid));
+        setConnStatus("● 已连接", true);
+    }
+
+    private void onJoinedRoom(Map<String, Object> msg) {
+        String rid = (String) msg.get("roomId");
+        String pid = (String) msg.get("playerId");
+        ws.setMyId(pid);
+        ws.setCurrentRoomId(rid);
+        sm.setLocalPlayerId(pid);
+        // 客机不预创建状态，等待房主广播权威state
         Platform.runLater(() -> {
-            double renderCamY;
-            if (currentMode == Mode.SINGLE) {
-                Player local = state.getPlayers().get("local");
-                renderCamY = (local != null && local.getCameraY() != 0) ? local.getCameraY() : state.getCameraY();
-            } else {
-                renderCamY = state.getCameraY();
-            }
-            renderer.render(state, currentModeStr, renderCamY, wsService.isShowFps());
-            updateLeaderboard(state);
-            updateToolbar();
-
-            if ("gameover".equals(state.getPhase())) {
-                showGameOver(state);
-            }
+            if (roomIdDisplay != null) roomIdDisplay.setText("房间: " + rid);
         });
+        setConnStatus("● 已连接", true);
     }
 
-    private void onNetworkState(GameState remoteState) {
-        if (currentMode == Mode.DEDICATED) {
-            stateManager.reconcile(remoteState);
-        } else {
-            stateManager.setState(remoteState);
+    private void onPlayerJoined(Map<String, Object> msg) {
+        String name = (String) msg.get("name");
+        String pid = (String) msg.get("playerId");
+        showHint(name + " 加入了房间");
+        if (!isHost() || pid == null) return;
+
+        GameState state = sm.getState();
+        if (state == null) return;
+        if (!state.getPlayers().containsKey(pid)) {
+            Player joiner = new Player(pid, name);
+            joiner.setColor(com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS[
+                    Math.abs(pid.hashCode()) % com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS.length]);
+            GamePhysics.initJoiningPlayer(state, joiner);
+            state.getPlayers().put(pid, joiner);
+        }
+        // 房主立即广播权威状态，让新机同步
+        ws.sendState(state);
+    }
+
+    private void onPlayerLeft(Map<String, Object> msg) {
+        String pid = (String) msg.get("playerId");
+        GameState state = sm.getState();
+        if (state != null && pid != null) {
+            Player p = state.getPlayers().get(pid);
+            if (p != null) p.setDisconnected(true);
         }
     }
 
-    private void onNetworkMessage(Map<String, Object> msg) {
-        String type = (String) msg.get("type");
-        if ("mode_confirmed".equals(type)) {
-            String playerId = (String) msg.get("playerId");
-            wsService.setMyId(playerId);
-            Platform.runLater(() -> {
-                if (connStatus != null) {
-                    connStatus.setText("● 已连接");
-                    connStatus.setStyle("-fx-text-fill: #4ecca3;");
+    private void onError(Map<String, Object> msg) {
+        showHint("错误: " + msg.get("message"));
+    }
+
+    private void onRoomClosed() {
+        showHint("房间已关闭");
+        setConnStatus("● 未连接", false);
+    }
+
+    private void onRelayInput(Map<String, Object> msg) {
+        if (!isHost()) return;
+        String action = (String) msg.get("action");
+        String pid = (String) msg.getOrDefault("playerId", localId());
+        GameState state = sm.getState();
+        if (state == null) return;
+        Player p = state.getPlayers().get(pid);
+        if (p == null) return;
+
+        boolean changed = switch (action) {
+            case "start" -> {
+                if ("menu".equals(state.getPhase()) || "gameover".equals(state.getPhase())) {
+                    GamePhysics.startGame(state);
+                    yield true;
+                } else if ("playing".equals(state.getPhase())) {
+                    // 房主已在游戏中，广播当前状态让中途加入的客机同步
+                    yield true;
                 }
-            });
-        } else if ("room_created".equals(type)) {
-            String roomId = (String) msg.get("roomId");
-            wsService.setMyId("local");
-            wsService.setCurrentRoomId(roomId); // 确保保存
-            Platform.runLater(() -> {
-                if (roomIdDisplay != null) roomIdDisplay.setText("房间: " + roomId);
-                if (connStatus != null) {
-                    connStatus.setText("● 已连接");
-                    connStatus.setStyle("-fx-text-fill: #4ecca3;");
-                }
-            });
-        } else if ("joined_room".equals(type)) {
-            String roomId = (String) msg.get("roomId");
-            String playerId = (String) msg.get("playerId");
-            wsService.setMyId(playerId);
-            wsService.setCurrentRoomId(roomId);
-            Platform.runLater(() -> {
-                if (roomIdDisplay != null) roomIdDisplay.setText("房间: " + roomId);
-                if (connStatus != null) {
-                    connStatus.setText("● 已连接");
-                    connStatus.setStyle("-fx-text-fill: #4ecca3;");
-                }
-            });
-        } else if ("player_joined".equals(type)) {
-            String name = (String) msg.get("name");
-            String pid = (String) msg.get("playerId");
-            Platform.runLater(() -> {
-                if (hint != null) hint.setText(name + " 加入了房间");
-            });
-            // 如果是房主，在本地状态中为中途加入的玩家初始化
-            if (currentMode == Mode.RELAY_HOST && pid != null) {
-                GameState state = stateManager.getState();
-                if (state != null && !state.getPlayers().containsKey(pid)) {
-                    Player joiner = new Player(pid, name);
-                    joiner.setColor(com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS[
-                            Math.abs(pid.hashCode()) % com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS.length]);
-                    com.wallrunner.shared.physics.GamePhysics.initJoiningPlayer(state, joiner);
-                    state.getPlayers().put(pid, joiner);
-                }
+                yield false;
             }
-        } else if ("error".equals(type)) {
-            String error = (String) msg.get("message");
-            Platform.runLater(() -> {
-                if (hint != null) hint.setText("错误: " + error);
-            });
-        } else if ("room_closed".equals(type)) {
-            Platform.runLater(() -> {
-                if (hint != null) hint.setText("房间已关闭");
-                if (connStatus != null) {
-                    connStatus.setText("● 未连接");
-                    connStatus.setStyle("-fx-text-fill: #ff6b6b;");
-                }
-            });
-        } else if ("input".equals(type)) {
-            // 【修复】房主收到客机（或公共服务器）转发的输入消息
-            if (currentMode == Mode.RELAY_HOST || currentMode == Mode.SINGLE) {
-                String action = (String) msg.get("action");
-                String playerId = (String) msg.getOrDefault("playerId", "local");
-                GameState state = stateManager.getState();
-                if (state == null) return;
-                Player p = state.getPlayers().get(playerId);
-                if (p == null) return;
-                if ("start".equals(action)) {
-                    if ("menu".equals(state.getPhase()) || "gameover".equals(state.getPhase())) {
-                        GamePhysics.startGame(state);
-                    }
-                } else if ("jump".equals(action)) {
-                    GamePhysics.handleInput(p, "jump");
-                } else if ("pause".equals(action)) {
-                    p.setPaused(true);
-                } else if ("resume".equals(action)) {
-                    p.setPaused(false);
-                }
-            }
-        }
+            case "jump"   -> { GamePhysics.handleInput(p, "jump"); yield true; }
+            case "pause"  -> { p.setPaused(true); yield true; }
+            case "resume" -> { p.setPaused(false); yield true; }
+            default -> false;
+        };
+
+        if (changed) ws.sendState(state);
     }
 
-    private void updateLeaderboard(GameState state) {
-        if (lbList == null) return;
-        lbList.getChildren().clear();
-        int totalPlayers = state.getPlayers().size();
-        // 单人模式不显示排行榜
-        if (currentMode == Mode.SINGLE || totalPlayers <= 1) {
-            if (leaderboard != null) {
-                leaderboard.setVisible(false);
-                leaderboard.setManaged(false);
-            }
-            return;
-        }
-        if (leaderboard != null) {
-            leaderboard.setVisible(true);
-            leaderboard.setManaged(true);
-        }
-        state.getPlayers().values().stream()
-                .sorted((a, b) -> Integer.compare(b.getScore(), a.getScore()))
-                .forEach(p -> {
-                    String text = p.getName() + ": " + p.getScore();
-                    if (p.isPaused()) text += " (暂停)";
-                    Label lbl = new Label(text);
-                    String color = p.getColor();
-                    boolean isMe = "local".equals(p.getId());
-                    boolean isDead = !p.isActive();
-                    StringBuilder style = new StringBuilder();
-                    style.append("-fx-text-fill: ").append(color).append("; -fx-font-size: 12px;");
-                    if (isMe) style.append(" -fx-font-weight: bold;");
-                    if (isDead) style.append(" -fx-strikethrough: true; -fx-opacity: 0.6;");
-                    if (p.isPaused() && !isDead) style.append(" -fx-opacity: 0.7;");
-                    lbl.setStyle(style.toString());
-                    lbList.getChildren().add(lbl);
-                });
-    }
+    // ===== UI 与交互 =====
 
-    private void updateToolbar() {}
-
-    private void showGameOver(GameState state) {
-        gameLoop.stop();
-        Player local = state.getPlayers().get("local");
-        int score = local != null ? local.getScore() : 0;
-        finalScoreLabel.setText("最终得分: " + score);
-        gameOverOverlay.setVisible(true);
-        gameOverOverlay.setManaged(true);
-    }
-
-    @FXML
-    private void onTogglePause() {
+    @FXML private void onTogglePause() {
         if (!isPlaying()) return;
         paused = !paused;
         pauseOverlay.setVisible(paused);
         pauseOverlay.setManaged(paused);
         hint.setText(paused ? "游戏已暂停（按 ESC 恢复）" : "按跳跃键 / 点击屏幕 / 触摸 来跳跃");
 
-        GameState state = stateManager.getState();
-        Player local = state != null ? state.getPlayers().get("local") : null;
-        if (local != null) local.setPaused(paused);
-
-        if (currentMode == Mode.DEDICATED || currentMode == Mode.RELAY_GUEST) {
-            wsService.sendInput(paused ? "pause" : "resume");
-        }
+        GameState state = sm.getState();
+        Player me = state != null ? state.getPlayers().get(localId()) : null;
+        if (me != null) me.setPaused(paused);
+        if (isGuest()) ws.sendInput(paused ? "pause" : "resume");
 
         if (!paused) {
-            gameLoop.start();
-            Platform.runLater(() -> {
-                if (gameCanvas != null) gameCanvas.requestFocus();
-            });
+            loop.start();
+            focusCanvas();
         }
     }
 
-    @FXML
-    private void onOpenSettings() {
-        inputService.setSettingsOpen(true);
-        gameLoop.stop();
-
+    @FXML private void onOpenSettings() {
+        input.setSettingsOpen(true);
+        loop.stop();
         if (settingsOverlay != null && !settingsLoaded) {
             try {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/wallrunner/client/view/settings.fxml"));
-                Parent settingsRoot = loader.load();
+                Parent root = loader.load();
                 SettingsController sc = loader.getController();
                 sc.setOnClose(this::onCloseSettings);
-                settingsOverlay.getChildren().add(settingsRoot);
+                settingsOverlay.getChildren().add(root);
                 settingsLoaded = true;
             } catch (Exception e) {
                 e.printStackTrace();
-                inputService.setSettingsOpen(false);
-                if (!paused) gameLoop.start();
+                input.setSettingsOpen(false);
+                if (!paused) loop.start();
                 return;
             }
         }
-
         if (settingsOverlay != null) {
             settingsOverlay.setVisible(true);
             settingsOverlay.setManaged(true);
@@ -456,49 +389,152 @@ public class GameController {
             settingsOverlay.setVisible(false);
             settingsOverlay.setManaged(false);
         }
-        inputService.setSettingsOpen(false);
-        reloadKeyBindings();
-
+        input.setSettingsOpen(false);
+        reloadKeys();
         if (!paused) {
-            gameLoop.start();
-            Platform.runLater(() -> {
-                if (gameCanvas != null) gameCanvas.requestFocus();
+            loop.start();
+            focusCanvas();
+        }
+    }
+
+    @FXML private void onReturnToMenu() {
+        loop.stop();
+        ws.disconnect();
+        sm.reset();
+        ClientApplication.switchScene("/com/wallrunner/client/view/menu.fxml");
+    }
+
+    @FXML private void onRestart() {
+        gameOverOverlay.setVisible(false);
+        gameOverOverlay.setManaged(false);
+        sm.reset();
+        sm.setLocalPlayerId(ws.getClientId());
+        if (isOffline() || isHost()) {
+            sm.initLocalState(ws.getPlayerName());
+            GameState s = sm.getState();
+            s.setPhase("menu");
+            s.setTimeBonusInterval(ws.getTimeBonusInterval());
+            s.setTimeBonusPoints(ws.getTimeBonusPoints());
+        }
+        loop.start();
+    }
+
+    // ===== 初始化与辅助 =====
+
+    private void disableButtonFocus() {
+        if (btnPause != null) btnPause.setFocusTraversable(false);
+        if (btnSettings != null) btnSettings.setFocusTraversable(false);
+        if (btnHome != null) btnHome.setFocusTraversable(false);
+    }
+
+    private void focusCanvas() {
+        Platform.runLater(() -> {
+            if (gameCanvas != null) {
+                gameCanvas.setFocusTraversable(true);
+                gameCanvas.requestFocus();
+            }
+        });
+    }
+
+    private void initConnStatus() {
+        if (connStatus == null) return;
+        switch (currentMode) {
+            case SINGLE      -> setConnStatus("本地游戏", false);
+            case DEDICATED   -> setConnStatus(ws.isConnected() ? "● 已连接" : "● 未连接", ws.isConnected());
+            case RELAY_HOST, RELAY_GUEST -> setConnStatus(ws.isConnected() ? "● 已连接" : "● 连接中...", ws.isConnected());
+        }
+    }
+
+    private void initRoomDisplay() {
+        if (roomIdDisplay == null) return;
+        String rid = ws.getCurrentRoomId();
+        if (rid != null && !rid.isEmpty()) updateRoomDisplay(rid);
+    }
+
+    private void updateRoomDisplay(String rid) {
+        if (roomIdDisplay == null) return;
+        boolean host = isHost();
+        roomIdDisplay.setText("房间: " + rid + (host ? "  (点击复制)" : ""));
+        if (host) {
+            roomIdDisplay.setOnMouseClicked(e -> {
+                javafx.scene.input.Clipboard cb = javafx.scene.input.Clipboard.getSystemClipboard();
+                javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+                cc.putString(rid);
+                cb.setContent(cc);
+                showHint("房间码已复制: " + rid);
             });
         }
     }
 
-    @FXML
-    private void onReturnToMenu() {
-        gameLoop.stop();
-        wsService.disconnect();
-        stateManager.reset();
-        ClientApplication.switchScene("/com/wallrunner/client/view/menu.fxml");
+    private void initLeaderboard() {
+        if (leaderboard == null) return;
+        boolean visible = !isOffline();
+        leaderboard.setVisible(visible);
+        leaderboard.setManaged(visible);
     }
 
-    @FXML
-    private void onRestart() {
-        gameOverOverlay.setVisible(false);
-        gameOverOverlay.setManaged(false);
-        stateManager.reset();
-        if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
-            stateManager.initLocalState(wsService.getPlayerName());
-            stateManager.getState().setPhase("menu");
-            // 同步时间奖励设置
-            stateManager.getState().setTimeBonusInterval(wsService.getTimeBonusInterval());
-            stateManager.getState().setTimeBonusPoints(wsService.getTimeBonusPoints());
+    private void reloadKeys() {
+        Preferences prefs = Preferences.userNodeForPackage(SettingsController.class);
+        String keysStr = prefs.get("jump_keys", "SPACE");
+        Set<KeyCode> keys = new java.util.LinkedHashSet<>();
+        if (keysStr != null && !keysStr.isEmpty()) {
+            for (String k : keysStr.split(",")) {
+                try { keys.add(KeyCode.valueOf(k.trim())); } catch (IllegalArgumentException ignored) {}
+            }
         }
-        gameLoop.start();
+        if (keys.isEmpty()) keys.add(KeyCode.SPACE);
+        input.setJumpKeys(keys);
+    }
+
+    private void hideOverlays() {
+        Platform.runLater(() -> {
+            pauseOverlay.setVisible(false); pauseOverlay.setManaged(false);
+            gameOverOverlay.setVisible(false); gameOverOverlay.setManaged(false);
+        });
+    }
+
+    private void updateLeaderboard(GameState state) {
+        if (lbList == null) return;
+        lbList.getChildren().clear();
+        var online = state.getPlayers().values().stream().filter(p -> !p.isDisconnected()).toList();
+        if (isOffline() || online.size() <= 1) {
+            if (leaderboard != null) { leaderboard.setVisible(false); leaderboard.setManaged(false); }
+            return;
+        }
+        if (leaderboard != null) { leaderboard.setVisible(true); leaderboard.setManaged(true); }
+        String myId = localId();
+        online.stream().sorted((a, b) -> Integer.compare(b.getScore(), a.getScore())).forEach(p -> {
+            String text = p.getName() + ": " + p.getScore() + (p.isPaused() ? " (暂停)" : "");
+            Label lbl = new Label(text);
+            StringBuilder style = new StringBuilder("-fx-text-fill: ").append(p.getColor()).append("; -fx-font-size: 12px;");
+            if (p.getId().equals(myId)) style.append(" -fx-font-weight: bold;");
+            if (!p.isActive()) style.append(" -fx-strikethrough: true; -fx-opacity: 0.6;");
+            else if (p.isPaused()) style.append(" -fx-opacity: 0.7;");
+            lbl.setStyle(style.toString());
+            lbList.getChildren().add(lbl);
+        });
+    }
+
+    private void showGameOver(GameState state) {
+        loop.stop();
+        Player me = state.getPlayers().get(localId());
+        finalScoreLabel.setText("最终得分: " + (me != null ? me.getScore() : 0));
+        gameOverOverlay.setVisible(true);
+        gameOverOverlay.setManaged(true);
     }
 
     private boolean isPlaying() {
-        GameState state = stateManager.getState();
-        return state != null && "playing".equals(state.getPhase());
+        GameState s = sm.getState();
+        return s != null && "playing".equals(s.getPhase());
     }
 
-    private void updateConnStatus(String text, boolean connected) {
+    private void setConnStatus(String text, boolean ok) {
         if (connStatus == null) return;
-        String color = connected ? "#4ecca3" : "#ff6b6b";
         connStatus.setText(text);
-        connStatus.setStyle("-fx-text-fill: " + color + ";");
+        connStatus.setStyle("-fx-text-fill: " + (ok ? "#4ecca3" : "#ff6b6b") + ";");
+    }
+
+    private void showHint(String text) {
+        Platform.runLater(() -> { if (hint != null) hint.setText(text); });
     }
 }

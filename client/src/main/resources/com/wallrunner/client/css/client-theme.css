@@ -1,3 +1,6 @@
+.root {
+    -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Microsoft YaHei", "PingFang SC", "Arial", sans-serif;
+}
 /* ============================================================
    WallRunner Client Theme — Web Edition Alignment
    【模块】client / css

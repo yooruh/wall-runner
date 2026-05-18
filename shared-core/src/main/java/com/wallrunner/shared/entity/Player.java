@@ -29,6 +29,7 @@ public class Player {
     private boolean paused = false;
     private double joinOffsetY = 0;      // 中途加入时的初始高度偏移
     private int timeBonusScore = 0;      // 时间奖励累计分数
+    private boolean disconnected = false; // 是否已断开连接
 
     // 必须提供无参构造用于反序列化
     public Player() {}
@@ -76,4 +77,6 @@ public class Player {
     public void setJoinOffsetY(double joinOffsetY) { this.joinOffsetY = joinOffsetY; }
     public int getTimeBonusScore() { return timeBonusScore; }
     public void setTimeBonusScore(int timeBonusScore) { this.timeBonusScore = timeBonusScore; }
+    public boolean isDisconnected() { return disconnected; }
+    public void setDisconnected(boolean disconnected) { this.disconnected = disconnected; }
 }

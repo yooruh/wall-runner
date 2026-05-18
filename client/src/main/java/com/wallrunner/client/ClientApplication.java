@@ -25,7 +25,7 @@ public class ClientApplication extends Application {
 
     private static Stage primaryStage;
     private static final double DEFAULT_WIDTH = 640;
-    private static final double DEFAULT_HEIGHT = 720;
+    private static final double DEFAULT_HEIGHT = 780;
 
     @Override
     public void start(Stage stage) throws Exception {
