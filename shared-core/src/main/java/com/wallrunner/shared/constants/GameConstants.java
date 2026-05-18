@@ -86,6 +86,17 @@ public final class GameConstants {
     public static final String COLLECTIBLE_POWERUP = "powerup";
     public static final String COLLECTIBLE_SHIELD = "shield";
 
+    // 收集物系统 A/B/C
+    public static final String COLLECTIBLE_A = "A";  // 无敌10秒（彩虹闪烁）
+    public static final String COLLECTIBLE_B = "B";  // 加速飞行10秒（吹风粒子）
+    public static final String COLLECTIBLE_C = "C";  // 加一条命（满命不加）
+    public static final int COLLECTIBLE_MATCH_COUNT = 3;  // 集齐3个同类触发技能
+    public static final double COLLECTIBLE_INVINCIBLE_DURATION = 10.0;  // A×3 无敌持续秒数
+    public static final double COLLECTIBLE_SPEED_DURATION = 10.0;       // B×3 加速飞行持续秒数
+    public static final double COLLECTIBLE_SPEED_MULTIPLIER = 2.5;      // B×3 加速倍率
+    public static final double COLLECTIBLE_SPAWN_INTERVAL = 300.0;      // 每300像素高度生成一个收集物
+    public static final double COLLECTIBLE_SIZE = 22.0;                 // 收集物尺寸
+
     // 难度等级参数
     public static final double DIFFICULTY_SPEED_INCREMENT = 0.15;  // 每级速度增量
     public static final int DIFFICULTY_MAX_LEVEL = 10;

@@ -185,15 +185,82 @@ public class Renderer {
 
     // 预留：可收集物渲染
     private void drawCollectibles(GameState state, double cameraY) {
+        long time = System.currentTimeMillis();
         for (Collectible c : state.getCollectibles()) {
             if (c.isCollected()) continue;
             double sy = c.getY() - cameraY;
             if (sy < -50 || sy > 650) continue;
 
             // 浮动效果
-            double floatY = sy + Math.sin(System.currentTimeMillis() / 300.0 + c.getOscillationPhase()) * 3;
+            double floatY = sy + Math.sin(time / 300.0 + c.getOscillationPhase()) * 3;
+            double cx = c.getX() + c.getWidth() / 2;
+            double cy = floatY + c.getHeight() / 2;
 
             switch (c.getType()) {
+                case "A" -> {
+                    // A收集物：金色星形，彩虹发光
+                    double glowPulse = 0.4 + 0.3 * Math.sin(time / 200.0 + c.getOscillationPhase());
+                    // 外发光
+                    gc.setGlobalAlpha(glowPulse);
+                    gc.setFill(Color.web("#ff6b6b"));
+                    gc.fillOval(c.getX() - 6, floatY - 6, c.getWidth() + 12, c.getHeight() + 12);
+                    gc.setGlobalAlpha(1.0);
+                    // 星形主体
+                    gc.setFill(Color.web("#f1c40f"));
+                    drawStar(cx, cy, c.getWidth() / 2, c.getWidth() / 4, 5);
+                    gc.setStroke(Color.web("#e67e22"));
+                    gc.setLineWidth(1.5);
+                    drawStarStroke(cx, cy, c.getWidth() / 2, c.getWidth() / 4, 5);
+                    // 标签
+                    gc.setFill(Color.web("#fff"));
+                    gc.setFont(Font.font("Segoe UI Emoji", 10));
+                    gc.setTextAlign(TextAlignment.CENTER);
+                    gc.fillText("A", cx, cy + 4);
+                }
+                case "B" -> {
+                    // B收集物：蓝色菱形，风圈效果
+                    double glowPulse = 0.4 + 0.3 * Math.sin(time / 250.0 + c.getOscillationPhase());
+                    // 外发光
+                    gc.setGlobalAlpha(glowPulse);
+                    gc.setFill(Color.web("#3498db"));
+                    gc.fillOval(c.getX() - 6, floatY - 6, c.getWidth() + 12, c.getHeight() + 12);
+                    gc.setGlobalAlpha(1.0);
+                    // 菱形主体
+                    gc.setFill(Color.web("#3498db"));
+                    gc.fillPolygon(
+                            new double[]{cx, cx + c.getWidth() / 2, cx, cx - c.getWidth() / 2},
+                            new double[]{floatY, cy, floatY + c.getHeight(), cy}, 4);
+                    gc.setStroke(Color.web("#2980b9"));
+                    gc.setLineWidth(1.5);
+                    gc.strokePolygon(
+                            new double[]{cx, cx + c.getWidth() / 2, cx, cx - c.getWidth() / 2},
+                            new double[]{floatY, cy, floatY + c.getHeight(), cy}, 4);
+                    // 标签
+                    gc.setFill(Color.web("#fff"));
+                    gc.setFont(Font.font("Segoe UI Emoji", 10));
+                    gc.setTextAlign(TextAlignment.CENTER);
+                    gc.fillText("B", cx, cy + 4);
+                }
+                case "C" -> {
+                    // C收集物：红色心形，生命光环
+                    double glowPulse = 0.4 + 0.3 * Math.sin(time / 180.0 + c.getOscillationPhase());
+                    // 外发光
+                    gc.setGlobalAlpha(glowPulse);
+                    gc.setFill(Color.web("#e74c3c"));
+                    gc.fillOval(c.getX() - 6, floatY - 6, c.getWidth() + 12, c.getHeight() + 12);
+                    gc.setGlobalAlpha(1.0);
+                    // 圆形主体
+                    gc.setFill(Color.web("#e74c3c"));
+                    gc.fillOval(c.getX(), floatY, c.getWidth(), c.getHeight());
+                    gc.setStroke(Color.web("#c0392b"));
+                    gc.setLineWidth(1.5);
+                    gc.strokeOval(c.getX(), floatY, c.getWidth(), c.getHeight());
+                    // 标签
+                    gc.setFill(Color.web("#fff"));
+                    gc.setFont(Font.font("Segoe UI Emoji", 10));
+                    gc.setTextAlign(TextAlignment.CENTER);
+                    gc.fillText("C", cx, cy + 4);
+                }
                 case "coin" -> {
                     gc.setFill(Color.web("#f1c40f"));
                     gc.fillOval(c.getX(), floatY, c.getWidth(), c.getHeight());
@@ -203,8 +270,6 @@ public class Renderer {
                 }
                 case "gem" -> {
                     gc.setFill(Color.web("#9b59b6"));
-                    double cx = c.getX() + c.getWidth() / 2;
-                    double cy = floatY + c.getHeight() / 2;
                     gc.fillPolygon(
                             new double[]{cx, cx + c.getWidth() / 2, cx, cx - c.getWidth() / 2},
                             new double[]{floatY, cy, floatY + c.getHeight(), cy}, 4);
@@ -221,6 +286,30 @@ public class Renderer {
                 }
             }
         }
+    }
+
+    private void drawStar(double cx, double cy, double outerR, double innerR, int points) {
+        double[] xPoints = new double[points * 2];
+        double[] yPoints = new double[points * 2];
+        for (int i = 0; i < points * 2; i++) {
+            double angle = Math.PI / 2 + i * Math.PI / points;
+            double r = (i % 2 == 0) ? outerR : innerR;
+            xPoints[i] = cx + r * Math.cos(angle);
+            yPoints[i] = cy - r * Math.sin(angle);
+        }
+        gc.fillPolygon(xPoints, yPoints, points * 2);
+    }
+
+    private void drawStarStroke(double cx, double cy, double outerR, double innerR, int points) {
+        double[] xPoints = new double[points * 2];
+        double[] yPoints = new double[points * 2];
+        for (int i = 0; i < points * 2; i++) {
+            double angle = Math.PI / 2 + i * Math.PI / points;
+            double r = (i % 2 == 0) ? outerR : innerR;
+            xPoints[i] = cx + r * Math.cos(angle);
+            yPoints[i] = cy - r * Math.sin(angle);
+        }
+        gc.strokePolygon(xPoints, yPoints, points * 2);
     }
 
     private void drawPlayers(GameState state, double cameraY, String localPlayerId) {
@@ -254,8 +343,42 @@ public class Renderer {
 
             // 闪烁效果（暂停玩家保持半透明，不闪烁）
             if (invincible && !isPaused) {
-                double alpha = (System.currentTimeMillis() % 200 < 100) ? 0.3 : 0.7;
-                gc.setGlobalAlpha(alpha);
+                // A×3 彩虹闪烁 vs 普通无敌闪烁
+                if ("A".equals(p.getActivePowerUp())) {
+                    // 彩虹闪烁：快速循环彩虹色
+                    double hue = (System.currentTimeMillis() / 30.0) % 360;
+                    gc.setFill(Color.hsb(hue, 0.8, 1.0, 0.7));
+                    gc.fillRect(p.getX() - 4, sy - 4, p.getWidth() + 8, p.getHeight() + 8);
+                    // 彩虹光环
+                    gc.setStroke(Color.hsb((hue + 180) % 360, 0.9, 1.0, 0.6));
+                    gc.setLineWidth(3);
+                    gc.strokeOval(p.getX() - 6, sy - 6, p.getWidth() + 12, p.getHeight() + 12);
+                } else {
+                    double alpha = (System.currentTimeMillis() % 200 < 100) ? 0.3 : 0.7;
+                    gc.setGlobalAlpha(alpha);
+                }
+            }
+
+            // B×3 加速飞行：吹风粒子效果
+            if ("B".equals(p.getActivePowerUp()) && !isPaused) {
+                // 速度光环
+                double windPhase = System.currentTimeMillis() / 100.0;
+                gc.setStroke(Color.web("rgba(135,206,250,0.6)"));
+                gc.setLineWidth(2);
+                gc.strokeOval(p.getX() - 3, sy - 3, p.getWidth() + 6, p.getHeight() + 6);
+                // 风粒子拖尾
+                String windSide = "left".equals(p.getSide()) ? "right" : "left";
+                for (int wi = 0; wi < 4; wi++) {
+                    double windX = "left".equals(p.getSide()) 
+                            ? p.getX() + p.getWidth() + 5 + wi * 8 
+                            : p.getX() - 10 - wi * 8;
+                    double windY = sy + 5 + (Math.sin(windPhase + wi * 1.5) * 8);
+                    double windAlpha = 0.7 - wi * 0.15;
+                    gc.setGlobalAlpha(windAlpha);
+                    gc.setFill(Color.web("#87CEFA"));
+                    gc.fillOval(windX, windY, 4, 3);
+                }
+                gc.setGlobalAlpha(1.0);
             }
 
             // 击退旋转
@@ -340,8 +463,7 @@ public class Renderer {
         if (me == null || !me.isActive()) return;
 
         double myY = me.getY();
-        double screenTop = cameraY;
-        double screenBottom = cameraY + GameConstants.CANVAS_HEIGHT;
+        // screen boundaries: cameraY ~ cameraY + CANVAS_HEIGHT
 
         // 收集屏幕外的玩家
         List<Player> above = new ArrayList<>();
@@ -395,11 +517,10 @@ public class Renderer {
         measure.setFont(Font.font("Segoe UI Emoji", 10));
         double textWidth = measure.getLayoutBounds().getWidth();
         double paddingX = 12;
-        double paddingY = 6;
         double bubbleW = textWidth + paddingX * 2;
         double bubbleH = 22;
         double bubbleX = (GameConstants.CANVAS_WIDTH - bubbleW) / 2;
-        double bubbleY = isAbove ? 4 : GameConstants.CANVAS_HEIGHT - bubbleH - 4;
+        double bubbleY = isAbove ? 20 : GameConstants.CANVAS_HEIGHT - bubbleH - 20;
 
         // 绘制气泡背景
         gc.setFill(Color.web("rgba(15,52,96,0.85)"));
@@ -459,6 +580,49 @@ public class Renderer {
             gc.setFill(Color.web("#f1c40f"));
             gc.setFont(Font.font("Segoe UI Emoji", 14));
             gc.fillText("💰 " + me.getCoinsCollected(), 15, 100);
+        }
+
+        // 收集物进度显示
+        String cType = me.getCollectibleType();
+        int cCount = me.getCollectibleCount();
+        if (cType != null && !cType.isEmpty() && cCount > 0) {
+            double hudY = me.getCoinsCollected() > 0 ? 118 : 100;
+            gc.setFont(Font.font("Segoe UI Emoji", 14));
+            String label;
+            String color;
+            switch (cType) {
+                case "A" -> { label = "A"; color = "#FF6B6B"; }
+                case "B" -> { label = "B"; color = "#4ECDC4"; }
+                case "C" -> { label = "C"; color = "#FFE66D"; }
+                default -> { label = cType; color = "#aaa"; }
+            }
+            // 绘制收集进度：已收集的用亮色，未收集的用暗色
+            for (int ci = 0; ci < 3; ci++) {
+                gc.setFill(Color.web(ci < cCount ? color : "#444444"));
+                gc.fillOval(15 + ci * 24, hudY, 18, 18);
+                gc.setFill(Color.web(ci < cCount ? "#fff" : "#666"));
+                gc.setFont(Font.font("Segoe UI Emoji", 11));
+                gc.fillText(label, 19 + ci * 24, hudY + 14);
+            }
+        }
+
+        // 激活技能倒计时
+        String activePower = me.getActivePowerUp();
+        if (activePower != null && !activePower.isEmpty()) {
+            double skillY = me.getCoinsCollected() > 0 ? 140 : 122;
+            if (cType != null && !cType.isEmpty() && cCount > 0) skillY += 22;
+            gc.setFont(Font.font("Segoe UI Emoji", 13));
+            double remaining = me.getPowerUpTimer();
+            switch (activePower) {
+                case "A" -> {
+                    gc.setFill(Color.web("#FF6B6B"));
+                    gc.fillText("🛡️ 无敌 " + String.format("%.1f", remaining) + "s", 15, skillY);
+                }
+                case "B" -> {
+                    gc.setFill(Color.web("#4ECDC4"));
+                    gc.fillText("💨 加速 " + String.format("%.1f", remaining) + "s", 15, skillY);
+                }
+            }
         }
 
         if (me.isSpectator()) {

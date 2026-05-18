@@ -9,7 +9,8 @@
       alignment="CENTER"
       spacing="0"
       styleClass="settings-box"
-      prefWidth="380" prefHeight="680">
+      prefWidth="380" prefHeight="680"
+      maxWidth="380" maxHeight="680">
 
     <padding>
         <Insets top="20" right="0" bottom="20" left="0"/>

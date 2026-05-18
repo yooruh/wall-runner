@@ -64,6 +64,9 @@ public class GameController {
     @FXML private HBox statusBar;
     @FXML private VBox settingsOverlay;
     @FXML private VBox leaderboard;
+    @FXML private HBox bottomHintBox;
+    @FXML private Label bottomDeathHint;
+    @FXML private javafx.scene.control.Button bottomRespawnBtn;
 
     private final WebSocketClientService ws = WebSocketClientService.getInstance();
     private final StateManager sm = StateManager.getInstance();
@@ -508,6 +511,10 @@ public class GameController {
     }
 
     @FXML private void onRestart() {
+        // 【修复】脱离暂停状态，确保重生后游戏继续运行
+        paused = false;
+        pauseOverlay.setVisible(false);
+        pauseOverlay.setManaged(false);
         gameOverOverlay.setVisible(false);
         gameOverOverlay.setManaged(false);
         spectatorTargetId = null;
@@ -555,6 +562,7 @@ public class GameController {
         }
         hideDeathUI();
         loop.start();
+        focusCanvas();
     }
 
     // ===== 初始化与辅助 =====

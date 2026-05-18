@@ -49,6 +49,7 @@ public class GameState {
     private List<String> activeEffects = new ArrayList<>();
     private int difficultyLevel = 1;
     private double difficultyAccumulator = 0.0;
+    private double nextCollectibleSpawnY = 0;  // 下一个收集物生成的摄像机Y坐标
 
     public GameState() {}
 
@@ -101,4 +102,7 @@ public class GameState {
 
     public double getDifficultyAccumulator() { return difficultyAccumulator; }
     public void setDifficultyAccumulator(double difficultyAccumulator) { this.difficultyAccumulator = difficultyAccumulator; }
+
+    public double getNextCollectibleSpawnY() { return nextCollectibleSpawnY; }
+    public void setNextCollectibleSpawnY(double nextCollectibleSpawnY) { this.nextCollectibleSpawnY = nextCollectibleSpawnY; }
 }

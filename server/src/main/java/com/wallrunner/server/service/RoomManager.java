@@ -87,7 +87,10 @@ public class RoomManager {
         if (state == null) return;
         Player p = state.getPlayers().get(playerId);
         if (p != null) {
+            long now = System.currentTimeMillis();
             p.setDisconnected(true);
+            p.setOfflineTime(now);
+            p.setPaused(true); // 离线玩家视为暂停状态（无碰撞）
         }
         String hostId = roomHosts.get(roomId);
         if (hostId != null && hostId.equals(playerId)) {

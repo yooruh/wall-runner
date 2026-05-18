@@ -3,7 +3,6 @@ package com.wallrunner.client.service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallrunner.shared.entity.GameState;
-import com.wallrunner.shared.entity.Player;
 
 import java.net.URI;
 import java.net.http.HttpClient;

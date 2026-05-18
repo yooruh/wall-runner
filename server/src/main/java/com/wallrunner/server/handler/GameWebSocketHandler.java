@@ -50,8 +50,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        relayService.leave(session.getId());
-        sessionManager.unregister(session.getId());
+        String roomId = sessionManager.getRoomId(session.getId());
+        if (roomId != null) {
+            // 统一处理所有模式（Dedicated/Relay）的离开逻辑
+            roomManager.leaveRoom(roomId, session.getId());
+            sessionManager.unregister(session.getId());
+        }
         System.out.println("[WS] Disconnected: " + session.getId());
     }
 

@@ -1,6 +1,7 @@
 package com.wallrunner.shared.physics;
 
 import com.wallrunner.shared.constants.GameConstants;
+import com.wallrunner.shared.entity.Collectible;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Obstacle;
 import com.wallrunner.shared.entity.Player;
@@ -34,6 +35,7 @@ public class GamePhysics {
 
     public static void initState(GameState state) {
         state.getObstacles().clear();
+        state.getCollectibles().clear();
         state.setFrames(0);
         state.setPhase("menu");
         state.setDifficultyLevel(1);
@@ -66,6 +68,8 @@ public class GamePhysics {
             p.setActivePowerUp("");
             p.setPowerUpTimer(0);
             p.setEffects(new ArrayList<>());
+            p.setCollectibleType("");
+            p.setCollectibleCount(0);
             // 不重置最高分，保留历史最高分
             i++;
         }
@@ -75,6 +79,7 @@ public class GamePhysics {
         state.setTimeBonusAccumulator(0.0);
         if (state.getTimeBonusInterval() <= 0) state.setTimeBonusInterval(5.0);
         if (state.getTimeBonusPoints() <= 0) state.setTimeBonusPoints(10);
+        state.setNextCollectibleSpawnY(initCameraY - 200);  // 第一个收集物在起点上方200像素
     }
 
     /* ============================================================
@@ -157,8 +162,8 @@ public class GamePhysics {
         // 13. 难度递增（预留扩展）
         updateDifficulty(state, activePlayers);
 
-        // 14. 可收集物（预留扩展 —— 当前仅做占位）
-        // updateCollectibles(state, activePlayers);
+        // 14. 可收集物系统
+        updateCollectibles(state, activePlayers);
     }
 
     /* ============================================================
@@ -179,14 +184,134 @@ public class GamePhysics {
     }
 
     /* ============================================================
-       可收集物系统（预留扩展 —— 方法骨架）
+       收集物系统 A/B/C
        ============================================================ */
 
-    // 预留：生成可收集物
-    // private static void spawnCollectibles(GameState state, double cameraY) { }
+    private static void updateCollectibles(GameState state, List<Player> activePlayers) {
+        // 1. 生成收集物
+        spawnCollectibles(state);
 
-    // 预留：更新可收集物位置与碰撞
-    // private static void updateCollectibles(GameState state, List<Player> activePlayers) { }
+        // 2. 收集物随摄像机向上移动（与障碍物同步）
+        double lastCamY = activePlayers.stream()
+                .mapToDouble(Player::getCameraY)
+                .max()
+                .orElse(state.getCameraY());
+        double recycleLine = lastCamY + CANVAS_HEIGHT + DEATH_LINE_OFFSET;
+        state.getCollectibles().removeIf(c -> c.getY() > recycleLine);
+
+        // 3. 碰撞检测：玩家与收集物
+        for (Player p : activePlayers) {
+            if (p.isPaused() || p.isKnockedBack()) continue;
+            for (Collectible c : state.getCollectibles()) {
+                if (c.isCollected()) continue;
+                if (rectIntersect(p.getX(), p.getY(), p.getWidth(), p.getHeight(),
+                        c.getX(), c.getY(), c.getWidth(), c.getHeight())) {
+                    c.setCollected(true);
+                    handleCollectiblePickup(p, c.getType());
+                }
+            }
+        }
+
+        // 4. 处理加速飞行效果
+        for (Player p : activePlayers) {
+            processSpeedBoost(p);
+        }
+    }
+
+    private static void spawnCollectibles(GameState state) {
+        double displayCamY = state.getCameraY();
+        while (state.getNextCollectibleSpawnY() > displayCamY - CANVAS_HEIGHT) {
+            // 随机选择 A/B/C 类型
+            String[] types = {COLLECTIBLE_A, COLLECTIBLE_B, COLLECTIBLE_C};
+            String type = types[RANDOM.nextInt(types.length)];
+
+            // 在两墙之间的安全区域随机放置
+            double x = SAFE_LEFT + RANDOM.nextDouble() * (SAFE_RIGHT - SAFE_LEFT - COLLECTIBLE_SIZE);
+            double y = state.getNextCollectibleSpawnY();
+
+            Collectible c = new Collectible();
+            c.setX(x);
+            c.setY(y);
+            c.setWidth(COLLECTIBLE_SIZE);
+            c.setHeight(COLLECTIBLE_SIZE);
+            c.setType(type);
+            c.setCollected(false);
+            c.setOscillationPhase(RANDOM.nextDouble() * Math.PI * 2);
+            c.setGlowIntensity(0.5 + RANDOM.nextDouble() * 0.5);
+
+            // 设置收集时触发的特效标识
+            switch (type) {
+                case COLLECTIBLE_A:
+                    c.setEffectOnCollect("rainbow_sparkle");
+                    c.setValue(15);
+                    break;
+                case COLLECTIBLE_B:
+                    c.setEffectOnCollect("wind_particle");
+                    c.setValue(15);
+                    break;
+                case COLLECTIBLE_C:
+                    c.setEffectOnCollect("life_up");
+                    c.setValue(20);
+                    break;
+            }
+
+            state.getCollectibles().add(c);
+            state.setNextCollectibleSpawnY(y - COLLECTIBLE_SPAWN_INTERVAL - RANDOM.nextDouble() * 100);
+        }
+    }
+
+    private static void handleCollectiblePickup(Player p, String type) {
+        // 如果收集到不同类型，重置之前的进度
+        if (!type.equals(p.getCollectibleType())) {
+            p.setCollectibleType(type);
+            p.setCollectibleCount(1);
+        } else {
+            p.setCollectibleCount(p.getCollectibleCount() + 1);
+        }
+
+        // 集齐3个同类触发技能
+        if (p.getCollectibleCount() >= COLLECTIBLE_MATCH_COUNT) {
+            activateCollectibleSkill(p, type);
+            p.setCollectibleType("");
+            p.setCollectibleCount(0);
+        }
+    }
+
+    private static void activateCollectibleSkill(Player p, String type) {
+        switch (type) {
+            case COLLECTIBLE_A:
+                // 无敌10秒（彩虹闪烁特效）
+                p.setInvincible(true);
+                p.setInvincibleTimer(COLLECTIBLE_INVINCIBLE_DURATION);
+                p.setActivePowerUp(COLLECTIBLE_A);
+                p.setPowerUpTimer(COLLECTIBLE_INVINCIBLE_DURATION);
+                p.getEffects().add("rainbow_sparkle");
+                break;
+            case COLLECTIBLE_B:
+                // 加速飞行10秒（吹风粒子特效）
+                p.setActivePowerUp(COLLECTIBLE_B);
+                p.setPowerUpTimer(COLLECTIBLE_SPEED_DURATION);
+                p.getEffects().add("wind_particle");
+                break;
+            case COLLECTIBLE_C:
+                // 加一条命（满命不加）
+                if (p.getLives() < MAX_LIVES) {
+                    p.setLives(p.getLives() + 1);
+                }
+                p.getEffects().add("life_up_flash");
+                break;
+        }
+    }
+
+    private static void processSpeedBoost(Player p) {
+        if (!COLLECTIBLE_B.equals(p.getActivePowerUp())) return;
+        p.setPowerUpTimer(p.getPowerUpTimer() - 0.016);
+        if (p.getPowerUpTimer() <= 0) {
+            p.setActivePowerUp("");
+            p.setPowerUpTimer(0);
+            p.getEffects().remove("wind_particle");
+        }
+    }
 
     /* ============================================================
        时间奖励
@@ -245,6 +370,8 @@ public class GamePhysics {
         player.setSpectator(false);
         player.setCoinsCollected(0);
         player.setComboCount(0);
+        player.setCollectibleType("");
+        player.setCollectibleCount(0);
     }
 
     /* ============================================================
@@ -331,7 +458,9 @@ public class GamePhysics {
 
         if (!player.isJumping()) {
             // 攀爬阶段
-            double testY = player.getY() - CLIMB_SPEED;
+            double climbSpeed = COLLECTIBLE_B.equals(player.getActivePowerUp()) 
+                    ? CLIMB_SPEED * COLLECTIBLE_SPEED_MULTIPLIER : CLIMB_SPEED;
+            double testY = player.getY() - climbSpeed;
             boolean blocked = false;
             for (Obstacle obs : obstacles) {
                 if (rectIntersect(player.getX(), testY, player.getWidth(), player.getHeight(),
@@ -491,9 +620,24 @@ public class GamePhysics {
     private static void processInvincibility(Player p) {
         if (!p.isInvincible()) return;
         p.setInvincibleTimer(p.getInvincibleTimer() - 0.016);
+        // 同步A×3 powerUp计时器
+        if (COLLECTIBLE_A.equals(p.getActivePowerUp())) {
+            p.setPowerUpTimer(p.getPowerUpTimer() - 0.016);
+            if (p.getPowerUpTimer() <= 0) {
+                p.setActivePowerUp("");
+                p.setPowerUpTimer(0);
+                p.getEffects().remove("rainbow_sparkle");
+            }
+        }
         if (p.getInvincibleTimer() <= 0) {
             p.setInvincible(false);
             p.setInvincibleTimer(0);
+            // 清理A×3残留
+            if (COLLECTIBLE_A.equals(p.getActivePowerUp())) {
+                p.setActivePowerUp("");
+                p.setPowerUpTimer(0);
+                p.getEffects().remove("rainbow_sparkle");
+            }
         }
     }
 
@@ -617,6 +761,8 @@ public class GamePhysics {
                 applyKnockback(a, "right");
                 applyKnockback(b, "left");
             }
+            // 双跳跃碰撞后，knockback已经把玩家弹到墙壁外，不再做overlap分离（避免又推回墙壁内）
+            return;
         } else if (aJumping && !bJumping) {
             applyKnockback(b, a.getSide());
             double pushX = "left".equals(a.getSide()) ? JUMP_SPEED * 0.8 : -JUMP_SPEED * 0.8;
@@ -627,6 +773,7 @@ public class GamePhysics {
             b.setX(b.getX() + pushX);
         }
 
+        // 非双跳跃碰撞时，做overlap分离
         if (overlapX < overlapY) {
             double shift = overlapX / 2;
             a.setX(a.getX() + (dx > 0 ? shift : -shift));

@@ -51,13 +51,10 @@
 
             <!-- 设置覆盖层 -->
             <VBox fx:id="settingsOverlay" visible="false" managed="false" alignment="CENTER"
-                  styleClass="overlay-pane"/>
+                  styleClass="overlay-pane"
+                  maxWidth="380" maxHeight="680"/>
 
-            <!-- 底部提示 -->
-            <VBox alignment="BOTTOM_CENTER" mouseTransparent="true">
-                <padding><Insets bottom="16"/></padding>
-                <Label fx:id="hint" text="按跳跃键 / 点击屏幕 / 触摸 来跳跃" styleClass="hint-label"/>
-            </VBox>
+            <!-- 底部提示已移到窗口底部（BorderPane.bottom） -->
         </StackPane>
     </center>
 
@@ -69,5 +66,21 @@
             <VBox fx:id="lbList" spacing="4"/>
         </VBox>
     </right>
+
+    <!-- 底部提示区域（窗口底部，游戏区域外） -->
+    <bottom>
+        <VBox alignment="CENTER" spacing="4" style="-fx-padding: 6; -fx-background-color: rgba(15,52,96,0.6);">
+            <!-- 游戏提示小字 -->
+            <HBox alignment="CENTER" spacing="8">
+                <Label fx:id="hint" text="按跳跃键 / 点击屏幕 / 触摸 来跳跃" style="-fx-text-fill: #aaa; -fx-font-size: 11px;"/>
+            </HBox>
+            <!-- 死亡提示（默认隐藏） -->
+            <HBox fx:id="bottomHintBox" visible="false" managed="false" alignment="CENTER" spacing="12">
+                <Label fx:id="bottomDeathHint" text="" style="-fx-text-fill: #aaa; -fx-font-size: 12px;"/>
+                <Button fx:id="bottomRespawnBtn" text="立即重生" visible="false" managed="false"
+                        style="-fx-background-color: #4ecca3; -fx-text-fill: #0f3460; -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 4 16;"/>
+            </HBox>
+        </VBox>
+    </bottom>
 
 </BorderPane>

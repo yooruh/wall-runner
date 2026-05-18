@@ -4,7 +4,6 @@ import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
 import com.wallrunner.shared.physics.GamePhysics;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.prefs.Preferences;
 
@@ -68,6 +67,7 @@ public class StateManager {
         state.setActiveEffects(auth.getActiveEffects());
         state.setDifficultyLevel(auth.getDifficultyLevel());
         state.setDifficultyAccumulator(auth.getDifficultyAccumulator());
+        state.setNextCollectibleSpawnY(auth.getNextCollectibleSpawnY());
 
         Map<String, Player> localPlayers = state.getPlayers();
         Map<String, Player> authPlayers = auth.getPlayers();
@@ -135,6 +135,8 @@ public class StateManager {
         local.setPowerUpTimer(auth.getPowerUpTimer());
         local.setCoinsCollected(auth.getCoinsCollected());
         local.setComboCount(auth.getComboCount());
+        local.setCollectibleType(auth.getCollectibleType());
+        local.setCollectibleCount(auth.getCollectibleCount());
     }
 
     private void copyPlayer(Player target, Player source) {
@@ -172,6 +174,8 @@ public class StateManager {
         target.setPowerUpTimer(source.getPowerUpTimer());
         target.setCoinsCollected(source.getCoinsCollected());
         target.setComboCount(source.getComboCount());
+        target.setCollectibleType(source.getCollectibleType());
+        target.setCollectibleCount(source.getCollectibleCount());
     }
 
     private Player clonePlayer(Player p) {
@@ -208,6 +212,8 @@ public class StateManager {
         c.setPowerUpTimer(p.getPowerUpTimer());
         c.setCoinsCollected(p.getCoinsCollected());
         c.setComboCount(p.getComboCount());
+        c.setCollectibleType(p.getCollectibleType());
+        c.setCollectibleCount(p.getCollectibleCount());
         return c;
     }
 

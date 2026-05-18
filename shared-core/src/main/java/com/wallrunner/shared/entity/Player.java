@@ -89,6 +89,16 @@ public class Player {
     private int coinsCollected = 0;                      // 收集金币数
     private int comboCount = 0;                          // 连击计数
 
+    /* ============================================================
+       收集物系统 A/B/C
+       - collectibleType: 当前连续收集的收集物类型（"A"/"B"/"C"/""）
+       - collectibleCount: 当前连续收集的同类型数量（0-3）
+       - 收集到不同类型时重置：type变更，count=1
+       - 集齐3个同类触发技能后重置：type=""，count=0
+       ============================================================ */
+    private String collectibleType = "";                 // 当前连续收集的收集物类型
+    private int collectibleCount = 0;                    // 当前连续收集的同类型数量
+
     public Player() {}
 
     public Player(String id, String name) {
@@ -220,4 +230,10 @@ public class Player {
 
     public int getComboCount() { return comboCount; }
     public void setComboCount(int comboCount) { this.comboCount = comboCount; }
+
+    public String getCollectibleType() { return collectibleType; }
+    public void setCollectibleType(String collectibleType) { this.collectibleType = collectibleType != null ? collectibleType : ""; }
+
+    public int getCollectibleCount() { return collectibleCount; }
+    public void setCollectibleCount(int collectibleCount) { this.collectibleCount = collectibleCount; }
 }
