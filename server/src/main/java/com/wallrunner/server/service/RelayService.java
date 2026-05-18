@@ -74,6 +74,20 @@ public class RelayService {
         }
     }
 
+    public void broadcastToRoom(String roomId, Map<String, Object> msg, String excludeSessionId) {
+        try {
+            String json = objectMapper.writeValueAsString(msg);
+            TextMessage tm = new TextMessage(json);
+            for (WebSocketSession s : sessionManager.getAllSessions().values()) {
+                if (roomId.equals(sessionManager.getRoomId(s.getId())) && s.isOpen() && !s.getId().equals(excludeSessionId)) {
+                    s.sendMessage(tm);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[RelayService] broadcast failed: " + e.getMessage());
+        }
+    }
+
     public void relayInput(String roomId, Map<String, Object> msg, WebSocketSession sender) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;

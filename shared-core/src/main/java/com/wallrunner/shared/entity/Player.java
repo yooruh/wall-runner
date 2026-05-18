@@ -5,6 +5,9 @@ package com.wallrunner.shared.entity;
  * 【代号】Y
  * 【职责】玩家实体数据模型 (POJO)。纯数据结构，无业务逻辑。
  * 【原则】仅含字段与访问器，可被 Jackson / Gson 序列化，可被 JavaFX 绑定包装。
+ * 【修复】2026-05-08:
+ *       1. 添加 joinOffsetY：中途加入时的高度初始值，用于公平计分。
+ *       2. 添加 timeBonusScore：时间奖励累计分数，与高度分数分离。
  */
 public class Player {
     private String id;
@@ -24,6 +27,8 @@ public class Player {
     private double cameraY = 0;
     private double cameraTargetY = 0;
     private boolean paused = false;
+    private double joinOffsetY = 0;      // 中途加入时的初始高度偏移
+    private int timeBonusScore = 0;      // 时间奖励累计分数
 
     // 必须提供无参构造用于反序列化
     public Player() {}
@@ -67,4 +72,8 @@ public class Player {
     public void setCameraTargetY(double cameraTargetY) { this.cameraTargetY = cameraTargetY; }
     public boolean isPaused() { return paused; }
     public void setPaused(boolean paused) { this.paused = paused; }
+    public double getJoinOffsetY() { return joinOffsetY; }
+    public void setJoinOffsetY(double joinOffsetY) { this.joinOffsetY = joinOffsetY; }
+    public int getTimeBonusScore() { return timeBonusScore; }
+    public void setTimeBonusScore(int timeBonusScore) { this.timeBonusScore = timeBonusScore; }
 }

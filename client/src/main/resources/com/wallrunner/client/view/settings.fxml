@@ -19,26 +19,46 @@
             <TextField fx:id="nameField" styleClass="settings-input"/>
         </HBox>
 
-        <HBox alignment="CENTER_LEFT" spacing="12">
+        <VBox spacing="6">
             <padding><Insets top="14"/></padding>
-            <Label text="跳跃按键" styleClass="settings-label"/>
-            <ChoiceBox fx:id="jumpKeyChoice" styleClass="settings-choice"/>
-        </HBox>
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <Label text="跳跃按键" styleClass="settings-label"/>
+                <Button fx:id="btnAddJumpKey" text="＋ 按下绑定" styleClass="menu-btn, secondary"/>
+            </HBox>
+            <Label fx:id="jumpKeyHint" text="点击上方按钮后，按下想绑定的按键" styleClass="hint-label"/>
+            <VBox fx:id="jumpKeysContainer" spacing="4">
+                <padding><Insets left="92"/></padding>
+            </VBox>
+        </VBox>
 
         <HBox alignment="CENTER_LEFT" spacing="12">
             <padding><Insets top="14"/></padding>
+            <Label text="奖励间隔" styleClass="settings-label"/>
+            <TextField fx:id="timeIntervalField" text="5.0" styleClass="settings-input, number"/>
+            <Label text="秒" styleClass="settings-unit"/>
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="10"/></padding>
+            <Label text="每次加分" styleClass="settings-label"/>
+            <TextField fx:id="timePointsField" text="10" styleClass="settings-input, number"/>
+            <Label text="分" styleClass="settings-unit"/>
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="10"/></padding>
             <Label text="显示FPS" styleClass="settings-label"/>
             <CheckBox fx:id="showFpsCheck" styleClass="settings-check"/>
         </HBox>
 
         <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="14"/></padding>
+            <padding><Insets top="10"/></padding>
             <Label text="音效" styleClass="settings-label"/>
             <CheckBox fx:id="soundCheck" styleClass="settings-check"/>
         </HBox>
 
         <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="14"/></padding>
+            <padding><Insets top="10"/></padding>
             <Label text="本地预测" styleClass="settings-label"/>
             <CheckBox fx:id="predictCheck" styleClass="settings-check"/>
         </HBox>

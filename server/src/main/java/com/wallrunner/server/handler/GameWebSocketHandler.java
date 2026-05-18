@@ -87,9 +87,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         if ("dedicated".equals(mode)) {
             String dedRoomId = dedicatedService.getOrCreateRoom();
+            boolean isLateJoin = dedicatedService.isRoomActive(dedRoomId);
             dedicatedService.join(dedRoomId, player, session);
             sessionManager.bindRoom(session.getId(), dedRoomId);
             reply(session, Map.of("type", "mode_confirmed", "mode", "dedicated", "playerId", session.getId()));
+            // 通知房间内其他玩家有新玩家加入
+            if (isLateJoin) {
+                broadcastToRoom(dedRoomId, Map.of("type", "player_joined", "playerId", session.getId(), "name", name), session.getId());
+            }
         } else if ("relay".equals(mode)) {
             if ("create".equals(role)) {
                 String rid = relayService.createRoom(session.getId());
@@ -105,8 +110,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 if (ok) {
                     sessionManager.bindRoom(session.getId(), roomId);
                     reply(session, Map.of("type", "joined_room", "roomId", roomId, "playerId", session.getId()));
-                    // 通知房主
-                    relayService.notifyHost(roomId, Map.of("type", "player_joined", "playerId", session.getId(), "name", name));
+                    // 通知房主和其他玩家
+                    relayService.broadcastToRoom(roomId, Map.of("type", "player_joined", "playerId", session.getId(), "name", name), session.getId());
                 } else {
                     sendError(session, "房间不存在或已关闭");
                 }
@@ -143,5 +148,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private void sendError(WebSocketSession session, String error) {
         reply(session, Map.of("type", "error", "message", error));
+    }
+
+    private void broadcastToRoom(String roomId, Map<String, Object> msg, String excludeSessionId) {
+        try {
+            String json = objectMapper.writeValueAsString(msg);
+            TextMessage tm = new TextMessage(json);
+            for (WebSocketSession s : sessionManager.getAllSessions().values()) {
+                if (roomId.equals(sessionManager.getRoomId(s.getId())) && s.isOpen() && !s.getId().equals(excludeSessionId)) {
+                    s.sendMessage(tm);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[WS] Broadcast failed: " + e.getMessage());
+        }
     }
 }

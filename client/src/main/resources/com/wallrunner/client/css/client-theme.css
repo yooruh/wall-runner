@@ -217,7 +217,7 @@
     -fx-padding: 10;
     -fx-spacing: 3;
     -fx-min-width: 130;
-    -fx-max-width: 140;
+    -fx-max-width: 160;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 8, 0, 0, 2);
 }
 
@@ -304,4 +304,16 @@
 }
 .toggle-switch.active {
     -fx-background-color: #4ecca3;
+}
+
+
+/* ---- Settings additions 2026-05-08 ---- */
+.settings-unit {
+    -fx-font-size: 13px;
+    -fx-text-fill: #888;
+}
+
+.settings-input.number {
+    -fx-pref-width: 60;
+    -fx-alignment: center;
 }

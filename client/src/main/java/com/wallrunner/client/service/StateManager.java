@@ -30,6 +30,12 @@ public class StateManager {
         state.setPhase("menu");
     }
 
+    public void initLocalState(String playerName, double timeBonusInterval, int timeBonusPoints) {
+        initLocalState(playerName);
+        state.setTimeBonusInterval(timeBonusInterval);
+        state.setTimeBonusPoints(timeBonusPoints);
+    }
+
     public GameState getState() {
         return state;
     }

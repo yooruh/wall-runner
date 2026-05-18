@@ -47,11 +47,16 @@ public class GamePhysics {
             p.setBlocked(false);
             p.setCameraY(initCameraY);
             p.setCameraTargetY(initCameraY);
+            p.setJoinOffsetY(300);
+            p.setTimeBonusScore(0);
             i++;
         }
         state.setCameraY(initCameraY);
         state.setCameraTargetY(initCameraY);
         state.setNextSpawnCameraY(initCameraY - random(40, 80));
+        state.setTimeBonusAccumulator(0.0);
+        if (state.getTimeBonusInterval() <= 0) state.setTimeBonusInterval(5.0);
+        if (state.getTimeBonusPoints() <= 0) state.setTimeBonusPoints(10);
     }
 
     public static void update(GameState state) {
@@ -72,7 +77,6 @@ public class GamePhysics {
         List<Player> collidable = new ArrayList<>();
         for (Player player : activePlayers) {
             if (!player.isPaused()) {
-                player.setScore(player.getScore() + 1);
                 boolean blocked = updatePlayerMovement(player, state.getObstacles(), activePlayers);
                 blockedMap.put(player.getId(), blocked);
                 collidable.add(player);
@@ -81,7 +85,7 @@ public class GamePhysics {
             }
         }
 
-        // 3. 玩家间碰撞
+        // 3. 玩家间碰撞（暂停玩家不参与碰撞）
         for (int i = 0; i < collidable.size(); i++) {
             for (int j = i + 1; j < collidable.size(); j++) {
                 Player a = collidable.get(i);
@@ -110,8 +114,63 @@ public class GamePhysics {
         // 8. 检查全灭
         checkAllDead(state);
 
-        // 9. 生成障碍物（基于显示摄像机）
+        // 9. 时间奖励
+        applyTimeBonus(state, activePlayers);
+
+        // 10. 重新计算每个玩家的总分数（高度分 + 时间奖励分）
+        recalculateScores(activePlayers);
+
+        // 11. 生成障碍物（基于显示摄像机）
         checkSpawn(state);
+    }
+
+    private static void applyTimeBonus(GameState state, List<Player> activePlayers) {
+        double interval = state.getTimeBonusInterval();
+        if (interval <= 0) return;
+        state.setTimeBonusAccumulator(state.getTimeBonusAccumulator() + 0.016);
+        if (state.getTimeBonusAccumulator() >= interval) {
+            int points = state.getTimeBonusPoints();
+            for (Player p : activePlayers) {
+                if (!p.isPaused()) {
+                    p.setTimeBonusScore(p.getTimeBonusScore() + points);
+                }
+            }
+            state.setTimeBonusAccumulator(state.getTimeBonusAccumulator() - interval);
+        }
+    }
+
+    private static void recalculateScores(List<Player> activePlayers) {
+        for (Player p : activePlayers) {
+            int heightScore = (int) ((p.getJoinOffsetY() - p.getY()) / 10.0);
+            p.setScore(Math.max(0, heightScore + p.getTimeBonusScore()));
+        }
+    }
+
+    /**
+     * 初始化中途加入的玩家：位置与最末端玩家一致，joinOffsetY 设为该位置。
+     */
+    public static void initJoiningPlayer(GameState state, Player player) {
+        List<Player> activePlayers = getActivePlayers(state);
+        if (activePlayers.isEmpty()) return;
+        Player last = activePlayers.stream()
+                .max(java.util.Comparator.comparingDouble(Player::getY))
+                .orElse(null);
+        if (last == null) return;
+
+        double joinY = last.getY();
+        player.setActive(true);
+        player.setSide("left".equals(last.getSide()) ? "right" : "left");
+        player.setX("left".equals(player.getSide()) ? WALL_WIDTH : CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE);
+        player.setY(joinY);
+        player.setJoinOffsetY(joinY);
+        player.setTimeBonusScore(0);
+        player.setJumping(false);
+        player.setVy(0);
+        player.setLives(MAX_LIVES);
+        player.setPaused(false);
+        player.setBlocked(false);
+        player.setCameraY(last.getCameraY());
+        player.setCameraTargetY(last.getCameraTargetY());
     }
 
     private static List<Player> getActivePlayers(GameState state) {
@@ -188,6 +247,7 @@ public class GamePhysics {
     }
 
     private static boolean updatePlayerMovement(Player player, List<Obstacle> obstacles, List<Player> activePlayers) {
+        if (player.isPaused()) return false;
         boolean isBlocked = false;
 
         if (!player.isJumping()) {

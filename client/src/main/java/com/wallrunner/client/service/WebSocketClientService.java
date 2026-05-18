@@ -44,6 +44,8 @@ public class WebSocketClientService {
     private long latency = 0;
     private String currentRoomId;
     private String myId;
+    private double timeBonusInterval = 5.0;
+    private int timeBonusPoints = 10;
 
     // 回调
     private Consumer<GameState> onStateReceived;
@@ -152,6 +154,10 @@ public class WebSocketClientService {
     public void setCurrentRoomId(String id) { this.currentRoomId = id; }
     public String getMyId() { return myId; }
     public void setMyId(String id) { this.myId = id; }
+    public double getTimeBonusInterval() { return timeBonusInterval; }
+    public void setTimeBonusInterval(double v) { this.timeBonusInterval = v > 0 ? v : 5.0; }
+    public int getTimeBonusPoints() { return timeBonusPoints; }
+    public void setTimeBonusPoints(int v) { this.timeBonusPoints = v >= 0 ? v : 10; }
 
     private class WsListener implements WebSocket.Listener {
         @Override

@@ -30,10 +30,10 @@
                 <Canvas fx:id="gameCanvas" width="400" height="600"/>
             </VBox>
 
-            <!-- 排行榜：叠加在右上角 -->
+            <!-- 排行榜：叠加在左侧，高度自适应 -->
             <VBox fx:id="leaderboard" styleClass="leaderboard" alignment="TOP_LEFT"
-                  StackPane.alignment="TOP_RIGHT" visible="false" managed="false">
-                <padding><Insets top="44" right="8" bottom="0" left="0"/></padding>
+                  StackPane.alignment="TOP_LEFT" visible="false" managed="false">
+                <padding><Insets top="44" left="8" bottom="0" right="0"/></padding>
                 <Label text="排行榜" styleClass="lb-title"/>
                 <VBox fx:id="lbList" spacing="3"/>
             </VBox>

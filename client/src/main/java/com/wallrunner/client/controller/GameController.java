@@ -25,6 +25,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.prefs.Preferences;
 
 /**
@@ -109,6 +110,9 @@ public class GameController {
         if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
             stateManager.initLocalState(wsService.getPlayerName());
             stateManager.getState().setPhase("menu");
+            // 同步时间奖励设置
+            stateManager.getState().setTimeBonusInterval(wsService.getTimeBonusInterval());
+            stateManager.getState().setTimeBonusPoints(wsService.getTimeBonusPoints());
         }
 
         // 【修复】根据实际模式与连接状态初始化状态栏，避免离线仍显示"已连接"
@@ -171,13 +175,17 @@ public class GameController {
 
     private void reloadKeyBindings() {
         Preferences prefs = Preferences.userNodeForPackage(SettingsController.class);
-        String keyName = prefs.get("jump_key", "SPACE");
-        try {
-            KeyCode key = KeyCode.valueOf(keyName);
-            inputService.setJumpKey(key);
-        } catch (IllegalArgumentException e) {
-            inputService.setJumpKey(KeyCode.SPACE);
+        String keysStr = prefs.get("jump_keys", "SPACE");
+        Set<KeyCode> keys = new java.util.LinkedHashSet<>();
+        if (keysStr != null && !keysStr.isEmpty()) {
+            for (String k : keysStr.split(",")) {
+                try {
+                    keys.add(KeyCode.valueOf(k.trim()));
+                } catch (IllegalArgumentException ignored) {}
+            }
         }
+        if (keys.isEmpty()) keys.add(KeyCode.SPACE);
+        inputService.setJumpKeys(keys);
     }
 
     private void handleAction(String action) {
@@ -294,9 +302,21 @@ public class GameController {
             });
         } else if ("player_joined".equals(type)) {
             String name = (String) msg.get("name");
+            String pid = (String) msg.get("playerId");
             Platform.runLater(() -> {
                 if (hint != null) hint.setText(name + " 加入了房间");
             });
+            // 如果是房主，在本地状态中为中途加入的玩家初始化
+            if (currentMode == Mode.RELAY_HOST && pid != null) {
+                GameState state = stateManager.getState();
+                if (state != null && !state.getPlayers().containsKey(pid)) {
+                    Player joiner = new Player(pid, name);
+                    joiner.setColor(com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS[
+                            Math.abs(pid.hashCode()) % com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS.length]);
+                    com.wallrunner.shared.physics.GamePhysics.initJoiningPlayer(state, joiner);
+                    state.getPlayers().put(pid, joiner);
+                }
+            }
         } else if ("error".equals(type)) {
             String error = (String) msg.get("message");
             Platform.runLater(() -> {
@@ -310,15 +330,36 @@ public class GameController {
                     connStatus.setStyle("-fx-text-fill: #ff6b6b;");
                 }
             });
+        } else if ("input".equals(type)) {
+            // 【修复】房主收到客机（或公共服务器）转发的输入消息
+            if (currentMode == Mode.RELAY_HOST || currentMode == Mode.SINGLE) {
+                String action = (String) msg.get("action");
+                String playerId = (String) msg.getOrDefault("playerId", "local");
+                GameState state = stateManager.getState();
+                if (state == null) return;
+                Player p = state.getPlayers().get(playerId);
+                if (p == null) return;
+                if ("start".equals(action)) {
+                    if ("menu".equals(state.getPhase()) || "gameover".equals(state.getPhase())) {
+                        GamePhysics.startGame(state);
+                    }
+                } else if ("jump".equals(action)) {
+                    GamePhysics.handleInput(p, "jump");
+                } else if ("pause".equals(action)) {
+                    p.setPaused(true);
+                } else if ("resume".equals(action)) {
+                    p.setPaused(false);
+                }
+            }
         }
     }
 
     private void updateLeaderboard(GameState state) {
         if (lbList == null) return;
         lbList.getChildren().clear();
-        long activeCount = state.getPlayers().values().stream().filter(Player::isActive).count();
-        // 单人模式或只有一人时不显示排行榜面板
-        if (currentMode == Mode.SINGLE || activeCount <= 1) {
+        int totalPlayers = state.getPlayers().size();
+        // 单人模式不显示排行榜
+        if (currentMode == Mode.SINGLE || totalPlayers <= 1) {
             if (leaderboard != null) {
                 leaderboard.setVisible(false);
                 leaderboard.setManaged(false);
@@ -332,13 +373,18 @@ public class GameController {
         state.getPlayers().values().stream()
                 .sorted((a, b) -> Integer.compare(b.getScore(), a.getScore()))
                 .forEach(p -> {
-                    Label lbl = new Label(p.getName() + ": " + p.getScore());
+                    String text = p.getName() + ": " + p.getScore();
+                    if (p.isPaused()) text += " (暂停)";
+                    Label lbl = new Label(text);
                     String color = p.getColor();
                     boolean isMe = "local".equals(p.getId());
                     boolean isDead = !p.isActive();
-                    lbl.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 12px;" +
-                            (isMe ? " -fx-font-weight: bold;" : "") +
-                            (isDead ? " -fx-opacity: 0.5;" : ""));
+                    StringBuilder style = new StringBuilder();
+                    style.append("-fx-text-fill: ").append(color).append("; -fx-font-size: 12px;");
+                    if (isMe) style.append(" -fx-font-weight: bold;");
+                    if (isDead) style.append(" -fx-strikethrough: true; -fx-opacity: 0.6;");
+                    if (p.isPaused() && !isDead) style.append(" -fx-opacity: 0.7;");
+                    lbl.setStyle(style.toString());
                     lbList.getChildren().add(lbl);
                 });
     }
@@ -437,6 +483,9 @@ public class GameController {
         if (currentMode == Mode.SINGLE || currentMode == Mode.RELAY_HOST) {
             stateManager.initLocalState(wsService.getPlayerName());
             stateManager.getState().setPhase("menu");
+            // 同步时间奖励设置
+            stateManager.getState().setTimeBonusInterval(wsService.getTimeBonusInterval());
+            stateManager.getState().setTimeBonusPoints(wsService.getTimeBonusPoints());
         }
         gameLoop.start();
     }

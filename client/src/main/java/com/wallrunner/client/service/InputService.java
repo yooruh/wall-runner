@@ -4,6 +4,7 @@ import javafx.scene.Scene;
 import javafx.scene.input.KeyCode;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -15,6 +16,7 @@ import java.util.function.Consumer;
  *       1. 默认跳跃键=SPACE，ESC/P=暂停/关闭设置。
  *       2. 跳跃键可在设置界面绑定为其他按键。
  *       3. 保留触屏/鼠标点击跳跃。
+ * 【修复】2026-05-08: jumpKeys 改为 Set<KeyCode>，支持多键绑定同一行为。
  */
 public class InputService {
 
@@ -24,7 +26,11 @@ public class InputService {
     private Scene scene;
     private boolean settingsOpen = false;
     private boolean confirmOpen = false;
-    private KeyCode jumpKey = KeyCode.SPACE;
+    private final Set<KeyCode> jumpKeys = new LinkedHashSet<>();
+
+    public InputService() {
+        jumpKeys.add(KeyCode.SPACE);
+    }
 
     public void attach(Scene scene) {
         if (scene == null) return;
@@ -58,16 +64,21 @@ public class InputService {
         this.confirmOpen = open;
     }
 
-    public void setJumpKey(KeyCode key) {
-        this.jumpKey = key != null ? key : KeyCode.SPACE;
+    public void setJumpKeys(Set<KeyCode> keys) {
+        jumpKeys.clear();
+        if (keys != null && !keys.isEmpty()) {
+            jumpKeys.addAll(keys);
+        } else {
+            jumpKeys.add(KeyCode.SPACE);
+        }
     }
 
-    public KeyCode getJumpKey() {
-        return jumpKey;
+    public Set<KeyCode> getJumpKeys() {
+        return new LinkedHashSet<>(jumpKeys);
     }
 
     private void onKeyDown(KeyCode code) {
-        if (code == jumpKey) {
+        if (jumpKeys.contains(code)) {
             if (settingsOpen || confirmOpen) return;
             if (onAction != null) onAction.accept("action");
         } else if (code == KeyCode.ESCAPE || code == KeyCode.P) {

@@ -1,36 +1,40 @@
 package com.wallrunner.client.service;
 
-import javafx.animation.AnimationTimer;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 
 import java.util.function.Consumer;
 
 /**
  * 【模块】client / service
  * 【代号】Z
- * 【职责】基于 JavaFX AnimationTimer 的游戏主循环，提供固定时间步或可变时间步。
+ * 【职责】基于 JavaFX Timeline 的游戏主循环，固定 60 FPS 时间步。
  * 【原则】仅做调度器，不触碰游戏状态。
+ * 【修复】2026-05-08: 从 AnimationTimer 改为 Timeline，固定 16ms 间隔，
+ *        确保物理更新频率恒定，不受渲染帧率波动影响。
  */
 public class GameLoopService {
 
-    private final AnimationTimer timer;
+    private final Timeline timeline;
     private Consumer<Double> onTick;
     private long lastNano = 0;
 
     public GameLoopService() {
-        timer = new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                if (lastNano == 0) {
-                    lastNano = now;
-                    return;
-                }
-                double deltaMs = (now - lastNano) / 1_000_000.0;
+        KeyFrame kf = new KeyFrame(Duration.millis(1000.0 / 60), e -> {
+            long now = System.nanoTime();
+            if (lastNano == 0) {
                 lastNano = now;
-                if (onTick != null) {
-                    onTick.accept(deltaMs);
-                }
+                return;
             }
-        };
+            double deltaMs = (now - lastNano) / 1_000_000.0;
+            lastNano = now;
+            if (onTick != null) {
+                onTick.accept(deltaMs);
+            }
+        });
+        timeline = new Timeline(kf);
+        timeline.setCycleCount(Timeline.INDEFINITE);
     }
 
     public void setOnTick(Consumer<Double> callback) {
@@ -39,10 +43,10 @@ public class GameLoopService {
 
     public void start() {
         lastNano = 0;
-        timer.start();
+        timeline.play();
     }
 
     public void stop() {
-        timer.stop();
+        timeline.stop();
     }
 }

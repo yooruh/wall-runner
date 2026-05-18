@@ -46,10 +46,19 @@ public class DedicatedService {
         return roomId;
     }
 
+    public boolean isRoomActive(String roomId) {
+        return Boolean.TRUE.equals(activeDedicated.get(roomId));
+    }
+
     public void join(String roomId, Player player, WebSocketSession session) {
+        GameState state = roomManager.getRoom(roomId);
+        boolean isLateJoin = isRoomActive(roomId) && state != null && "playing".equals(state.getPhase());
         roomManager.joinRoom(roomId, player);
         sessionManager.bindRoom(session.getId(), roomId);
-        GameState state = roomManager.getRoom(roomId);
+        if (isLateJoin && state != null) {
+            // 中途加入：使用 GamePhysics 初始化位置
+            com.wallrunner.shared.physics.GamePhysics.initJoiningPlayer(state, player);
+        }
         if (state != null && state.getPlayers().size() >= 1 && !Boolean.TRUE.equals(activeDedicated.get(roomId))) {
             startGame(roomId);
         }

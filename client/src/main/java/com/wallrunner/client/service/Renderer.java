@@ -244,11 +244,19 @@ public class Renderer {
         gc.setFill(Color.web("white"));
         gc.setFont(Font.font("Arial", 18));
         gc.fillText("分数: " + me.getScore(), 15, 28);
-        gc.fillText("高度: " + (int) (-me.getY() / 10), 15, 50);
+
+        // 高度显示：若有中途加入偏移，在右侧标注
+        int heightVal = (int) (-me.getY() / 10);
+        String heightText = "高度: " + heightVal;
+        if (me.getJoinOffsetY() != 0 && me.getJoinOffsetY() != 300) {
+            int offsetVal = (int) (me.getJoinOffsetY() / 10);
+            heightText += " (初始 " + offsetVal + ")";
+        }
+        gc.fillText(heightText, 15, 50);
 
         for (int i = 0; i < GameConstants.MAX_LIVES; i++) {
             gc.setFill(Color.web(me.getLives() > i ? "#e94560" : "#444444"));
-            drawHeart(14 + i * 28, 64, 20);
+            drawHeart(14 + i * 32, 68, 24);
         }
     }
 
