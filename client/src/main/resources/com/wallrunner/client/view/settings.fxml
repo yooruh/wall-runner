@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.paint.Color?>
 <?import javafx.geometry.*?>
 
 <VBox xmlns="http://javafx.com/javafx/17"
@@ -86,18 +87,47 @@
                 <Label text="▎角色颜色" styleClass="settings-section-title"/>
                 <VBox spacing="6" alignment="CENTER_LEFT">
                     <CheckBox fx:id="autoColorCheck" text="使用默认配色（自动分配不重复颜色）" styleClass="settings-check"/>
-                    <VBox fx:id="customColorBox" spacing="6" alignment="CENTER_LEFT">
-                        <Label text="自定义填充色 (HEX)" styleClass="settings-label"/>
+                    <VBox fx:id="customColorBox" spacing="8" alignment="CENTER_LEFT">
+
+                        <!-- 填充色 -->
+                        <Label text="自定义填充色" styleClass="settings-label"/>
                         <HBox spacing="8" alignment="CENTER_LEFT">
-                            <TextField fx:id="fillColorField" promptText="#4ecca3" styleClass="settings-input" HBox.hgrow="ALWAYS"/>
-                            <Region fx:id="fillColorPreview" prefWidth="24" prefHeight="24" style="-fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;"/>
+                            <TextField fx:id="fillColorField" promptText="#4ecca3" styleClass="settings-input" HBox.hgrow="ALWAYS" editable="false"/>
+                            <Region fx:id="fillColorPreview" prefWidth="28" prefHeight="28" style="-fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: #666; -fx-border-width: 2;"/>
                         </HBox>
-                        <Label text="自定义描边色 (HEX)" styleClass="settings-label"/>
+                        <!-- 填充色调色板 -->
+                        <HBox fx:id="fillPaletteBox" spacing="4" alignment="CENTER_LEFT">
+                            <Button text="" style="-fx-background-color: #e94560; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset1"/>
+                            <Button text="" style="-fx-background-color: #3498db; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset2"/>
+                            <Button text="" style="-fx-background-color: #f1c40f; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset3"/>
+                            <Button text="" style="-fx-background-color: #2ecc71; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset4"/>
+                            <Button text="" style="-fx-background-color: #9b59b6; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset5"/>
+                            <Button text="" style="-fx-background-color: #e67e22; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset6"/>
+                            <Button text="" style="-fx-background-color: #1abc9c; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset7"/>
+                            <Button text="" style="-fx-background-color: #34495e; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onFillPreset8"/>
+                            <ColorPicker fx:id="fillColorPicker" style="-fx-pref-width: 32; -fx-pref-height: 24;"/>
+                        </HBox>
+
+                        <!-- 描边色 -->
+                        <Label text="自定义描边色" styleClass="settings-label"/>
                         <HBox spacing="8" alignment="CENTER_LEFT">
-                            <TextField fx:id="strokeColorField" promptText="#3db892" styleClass="settings-input" HBox.hgrow="ALWAYS"/>
-                            <Region fx:id="strokeColorPreview" prefWidth="24" prefHeight="24" style="-fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;"/>
+                            <TextField fx:id="strokeColorField" promptText="#3db892" styleClass="settings-input" HBox.hgrow="ALWAYS" editable="false"/>
+                            <Region fx:id="strokeColorPreview" prefWidth="28" prefHeight="28" style="-fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: #666; -fx-border-width: 2;"/>
                         </HBox>
-                        <Label text="留空则使用默认配色" styleClass="settings-hint"/>
+                        <!-- 描边色调色板 -->
+                        <HBox fx:id="strokePaletteBox" spacing="4" alignment="CENTER_LEFT">
+                            <Button text="" style="-fx-background-color: #c0392b; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset1"/>
+                            <Button text="" style="-fx-background-color: #2980b9; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset2"/>
+                            <Button text="" style="-fx-background-color: #d4ac0d; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset3"/>
+                            <Button text="" style="-fx-background-color: #27ae60; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset4"/>
+                            <Button text="" style="-fx-background-color: #8e44ad; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset5"/>
+                            <Button text="" style="-fx-background-color: #d35400; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset6"/>
+                            <Button text="" style="-fx-background-color: #16a085; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset7"/>
+                            <Button text="" style="-fx-background-color: #2c3e50; -fx-pref-width: 24; -fx-pref-height: 24; -fx-background-radius: 4;" onAction="#onStrokePreset8"/>
+                            <ColorPicker fx:id="strokeColorPicker" style="-fx-pref-width: 32; -fx-pref-height: 24;"/>
+                        </HBox>
+
+                        <Label text="点击色块选择预设颜色，或使用右侧取色器自定义" styleClass="settings-hint"/>
                     </VBox>
                 </VBox>
             </VBox>

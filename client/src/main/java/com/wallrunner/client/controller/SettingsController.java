@@ -9,6 +9,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -20,6 +21,7 @@ import java.util.prefs.Preferences;
  * 职责：
  * - 按键绑定（支持多键绑定同一行为）。
  * - 时间奖励设置。
+ * - 角色颜色调色板选择。
  * - 预留：主题切换（深色/浅色）接口。
  */
 public class SettingsController {
@@ -34,13 +36,15 @@ public class SettingsController {
     @FXML private TextField timeIntervalField;
     @FXML private TextField timePointsField;
 
-    // 角色颜色设置
+    // 角色颜色设置 —— 调色板样式
     @FXML private CheckBox autoColorCheck;
     @FXML private VBox customColorBox;
     @FXML private TextField fillColorField;
     @FXML private TextField strokeColorField;
     @FXML private javafx.scene.layout.Region fillColorPreview;
     @FXML private javafx.scene.layout.Region strokeColorPreview;
+    @FXML private ColorPicker fillColorPicker;
+    @FXML private ColorPicker strokeColorPicker;
 
     // 【跨设备联机】服务器地址配置
     @FXML private TextField serverAddressField;
@@ -54,6 +58,16 @@ public class SettingsController {
     private Runnable onClose;
     private boolean listeningForKey = false;
     private final Set<KeyCode> pendingJumpKeys = new LinkedHashSet<>();
+
+    // 预设颜色表
+    private static final String[] PRESET_COLORS = {
+        "#e94560", "#3498db", "#f1c40f", "#2ecc71",
+        "#9b59b6", "#e67e22", "#1abc9c", "#34495e"
+    };
+    private static final String[] PRESET_STROKES = {
+        "#c0392b", "#2980b9", "#d4ac0d", "#27ae60",
+        "#8e44ad", "#d35400", "#16a085", "#2c3e50"
+    };
 
     public void setOnClose(Runnable onClose) {
         this.onClose = onClose;
@@ -99,7 +113,7 @@ public class SettingsController {
             themeSelector.setValue(savedTheme);
         }
 
-        // 角色颜色设置初始化
+        // 角色颜色设置初始化 —— 调色板
         boolean autoColor = prefs.getBoolean("auto_color", true);
         if (autoColorCheck != null) {
             autoColorCheck.setSelected(autoColor);
@@ -114,22 +128,72 @@ public class SettingsController {
             customColorBox.setVisible(!autoColor);
             customColorBox.setManaged(!autoColor);
         }
+
         String savedFill = prefs.get("fill_color", "");
         String savedStroke = prefs.get("stroke_color", "");
         if (fillColorField != null) fillColorField.setText(savedFill);
         if (strokeColorField != null) strokeColorField.setText(savedStroke);
-        updateColorPreviews();
 
-        // 颜色输入监听
-        if (fillColorField != null) {
-            fillColorField.textProperty().addListener((obs, old, val) -> updateColorPreviews());
+        // 初始化ColorPicker
+        if (fillColorPicker != null) {
+            fillColorPicker.setValue(savedFill.isEmpty() ? Color.web("#4ecca3") : Color.web(savedFill));
+            fillColorPicker.setOnAction(e -> {
+                String hex = colorToHex(fillColorPicker.getValue());
+                fillColorField.setText(hex);
+                updateColorPreviews();
+            });
         }
-        if (strokeColorField != null) {
-            strokeColorField.textProperty().addListener((obs, old, val) -> updateColorPreviews());
+        if (strokeColorPicker != null) {
+            strokeColorPicker.setValue(savedStroke.isEmpty() ? Color.web("#3db892") : Color.web(savedStroke));
+            strokeColorPicker.setOnAction(e -> {
+                String hex = colorToHex(strokeColorPicker.getValue());
+                strokeColorField.setText(hex);
+                updateColorPreviews();
+            });
         }
+
+        updateColorPreviews();
 
         btnAddJumpKey.setOnAction(e -> startListeningForKey());
         jumpKeyHint.setText("点击上方按钮后，按下想绑定的按键");
+    }
+
+    // ===== 调色板预设按钮事件 =====
+    @FXML private void onFillPreset1()  { setFillColor(PRESET_COLORS[0]); }
+    @FXML private void onFillPreset2()  { setFillColor(PRESET_COLORS[1]); }
+    @FXML private void onFillPreset3()  { setFillColor(PRESET_COLORS[2]); }
+    @FXML private void onFillPreset4()  { setFillColor(PRESET_COLORS[3]); }
+    @FXML private void onFillPreset5()  { setFillColor(PRESET_COLORS[4]); }
+    @FXML private void onFillPreset6()  { setFillColor(PRESET_COLORS[5]); }
+    @FXML private void onFillPreset7()  { setFillColor(PRESET_COLORS[6]); }
+    @FXML private void onFillPreset8()  { setFillColor(PRESET_COLORS[7]); }
+
+    @FXML private void onStrokePreset1() { setStrokeColor(PRESET_STROKES[0]); }
+    @FXML private void onStrokePreset2() { setStrokeColor(PRESET_STROKES[1]); }
+    @FXML private void onStrokePreset3() { setStrokeColor(PRESET_STROKES[2]); }
+    @FXML private void onStrokePreset4() { setStrokeColor(PRESET_STROKES[3]); }
+    @FXML private void onStrokePreset5() { setStrokeColor(PRESET_STROKES[4]); }
+    @FXML private void onStrokePreset6() { setStrokeColor(PRESET_STROKES[5]); }
+    @FXML private void onStrokePreset7() { setStrokeColor(PRESET_STROKES[6]); }
+    @FXML private void onStrokePreset8() { setStrokeColor(PRESET_STROKES[7]); }
+
+    private void setFillColor(String hex) {
+        if (fillColorField != null) fillColorField.setText(hex);
+        if (fillColorPicker != null) fillColorPicker.setValue(Color.web(hex));
+        updateColorPreviews();
+    }
+
+    private void setStrokeColor(String hex) {
+        if (strokeColorField != null) strokeColorField.setText(hex);
+        if (strokeColorPicker != null) strokeColorPicker.setValue(Color.web(hex));
+        updateColorPreviews();
+    }
+
+    private String colorToHex(Color c) {
+        return String.format("#%02X%02X%02X",
+                (int) Math.round(c.getRed() * 255),
+                (int) Math.round(c.getGreen() * 255),
+                (int) Math.round(c.getBlue() * 255));
     }
 
     private void startListeningForKey() {
@@ -282,17 +346,17 @@ public class SettingsController {
         if (fillColorPreview != null) {
             String fill = fillColorField != null ? fillColorField.getText().trim() : "";
             if (isValidHexColor(fill)) {
-                fillColorPreview.setStyle("-fx-background-color: " + fill + "; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+                fillColorPreview.setStyle("-fx-background-color: " + fill + "; -fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: #666; -fx-border-width: 2;");
             } else {
-                fillColorPreview.setStyle("-fx-background-color: #333; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+                fillColorPreview.setStyle("-fx-background-color: #333; -fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: #666; -fx-border-width: 2;");
             }
         }
         if (strokeColorPreview != null) {
             String stroke = strokeColorField != null ? strokeColorField.getText().trim() : "";
             if (isValidHexColor(stroke)) {
-                strokeColorPreview.setStyle("-fx-background-color: " + stroke + "; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+                strokeColorPreview.setStyle("-fx-background-color: " + stroke + "; -fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: #666; -fx-border-width: 2;");
             } else {
-                strokeColorPreview.setStyle("-fx-background-color: #333; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+                strokeColorPreview.setStyle("-fx-background-color: #333; -fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: #666; -fx-border-width: 2;");
             }
         }
     }

@@ -1,4 +1,5 @@
 .gitignore
+wall-runner.zip*
 
 # Compiled class files
 *.class

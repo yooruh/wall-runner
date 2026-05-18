@@ -240,11 +240,11 @@ public class GameController {
             if (me != null && !me.isPaused()) {
                 if (isOffline() || isHost()) {
                     GamePhysics.handleInput(me, "jump");
-                    renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide());
+                    renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide(), me.getWidth(), me.getHeight());
                 } else if (currentMode == Mode.DEDICATED) {
                     ws.sendInput("jump");
                     predictor.predict(state, localId(), "jump");
-                    renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide());
+                    renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide(), me.getWidth(), me.getHeight());
                 } else {
                     ws.sendInput("jump");
                 }

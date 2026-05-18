@@ -159,14 +159,14 @@ public class GamePhysics {
             }
         }
 
-        // 4. 玩家间碰撞
+        // 4. 玩家间碰撞 —— 无敌状态保留与其他玩家的碰撞交互
         for (int i = 0; i < collidable.size(); i++) {
             for (int j = i + 1; j < collidable.size(); j++) {
                 Player a = collidable.get(i);
                 Player b = collidable.get(j);
                 // 【修复】暂停玩家无碰撞效果
                 if (a.isPaused() || b.isPaused()) continue;
-                if (a.isInvincible() || b.isInvincible()) continue;
+                // 【修改】无敌状态仍保留与其他玩家的碰撞交互（仅跳过障碍物碰撞）
                 if (checkPlayerCollision(a, b)) {
                     resolvePlayerCollision(a, b);
                 }

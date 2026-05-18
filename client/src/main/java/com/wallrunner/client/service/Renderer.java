@@ -68,13 +68,14 @@ public class Renderer {
         }
     }
 
-    public void spawnJumpParticles(double x, double y, String side) {
+    public void spawnJumpParticles(double x, double y, String side, double width, double height) {
         int count = 8;
         double baseVx = "left".equals(side) ? -2.5 : 2.5;
         for (int i = 0; i < count; i++) {
             Particle p = new Particle();
-            p.x = x + (Math.random() - 0.5) * 10;
-            p.y = y;
+            // 从玩家底部中心附近生成，避免错位
+            p.x = x + width / 2 + (Math.random() - 0.5) * 10;
+            p.y = y + height;
             p.vx = baseVx * (Math.random() * 1.5 + 0.5);
             p.vy = Math.random() * -3 - 0.5;
             p.life = 1.0;
@@ -341,22 +342,19 @@ public class Renderer {
                 gc.fillRect(p.getX() + tailX * 1.8, sy + 25, p.getWidth(), p.getHeight() - 30);
             }
 
-            // 闪烁效果（暂停玩家保持半透明，不闪烁）
+            // 无敌特效：彩色闪烁（彩虹色循环），所有无敌状态统一特效
             if (invincible && !isPaused) {
-                // A×3 彩虹闪烁 vs 普通无敌闪烁
-                if ("A".equals(p.getActivePowerUp())) {
-                    // 彩虹闪烁：快速循环彩虹色
-                    double hue = (System.currentTimeMillis() / 30.0) % 360;
-                    gc.setFill(Color.hsb(hue, 0.8, 1.0, 0.7));
-                    gc.fillRect(p.getX() - 4, sy - 4, p.getWidth() + 8, p.getHeight() + 8);
-                    // 彩虹光环
-                    gc.setStroke(Color.hsb((hue + 180) % 360, 0.9, 1.0, 0.6));
-                    gc.setLineWidth(3);
-                    gc.strokeOval(p.getX() - 6, sy - 6, p.getWidth() + 12, p.getHeight() + 12);
-                } else {
-                    double alpha = (System.currentTimeMillis() % 200 < 100) ? 0.3 : 0.7;
-                    gc.setGlobalAlpha(alpha);
-                }
+                double hue = (System.currentTimeMillis() / 40.0) % 360;
+                // 彩虹填充光晕
+                gc.setFill(Color.hsb(hue, 0.85, 1.0, 0.5));
+                gc.fillRect(p.getX() - 5, sy - 5, p.getWidth() + 10, p.getHeight() + 10);
+                // 彩虹描边光环
+                gc.setStroke(Color.hsb((hue + 180) % 360, 0.9, 1.0, 0.7));
+                gc.setLineWidth(2.5);
+                gc.strokeOval(p.getX() - 8, sy - 8, p.getWidth() + 16, p.getHeight() + 16);
+                // 玩家本体半透明闪烁
+                double alpha = (System.currentTimeMillis() % 200 < 100) ? 0.4 : 0.85;
+                gc.setGlobalAlpha(alpha);
             }
 
             // B×3 加速飞行：吹风粒子效果
@@ -366,16 +364,16 @@ public class Renderer {
                 gc.setStroke(Color.web("rgba(135,206,250,0.6)"));
                 gc.setLineWidth(2);
                 gc.strokeOval(p.getX() - 3, sy - 3, p.getWidth() + 6, p.getHeight() + 6);
-                // 风粒子拖尾
+                // 风粒子拖尾 —— 修复方向和位置：拖尾在玩家后方（下方）
                 for (int wi = 0; wi < 4; wi++) {
                     double windX = "left".equals(p.getSide()) 
-                            ? p.getX() + p.getWidth() + 5 + wi * 8 
-                            : p.getX() - 10 - wi * 8;
-                    double windY = sy + 5 + (Math.sin(windPhase + wi * 1.5) * 8);
+                            ? p.getX() - 10 - wi * 8 
+                            : p.getX() + p.getWidth() + 5 + wi * 8;
+                    double windY = sy + p.getHeight() + 8 + wi * 6 + (Math.sin(windPhase + wi * 1.5) * 6);
                     double windAlpha = 0.7 - wi * 0.15;
                     gc.setGlobalAlpha(windAlpha);
                     gc.setFill(Color.web("#87CEFA"));
-                    gc.fillOval(windX, windY, 4, 3);
+                    gc.fillOval(windX, windY, 5, 4);
                 }
                 gc.setGlobalAlpha(1.0);
             }
@@ -444,8 +442,8 @@ public class Renderer {
             // 【修复】暂停玩家分数位置上移，避免与"暂停"标签重叠
             gc.fillText(p.getScore() + "分", p.getX() + p.getWidth() / 2, sy - (isPaused ? 32 : 18));
 
-            // 预留：特效可视化（如护盾光环）
-            if (p.getActivePowerUp() != null && !p.getActivePowerUp().isEmpty()) {
+            // 激活技能光环（仅在非无敌状态下显示，避免与无敌彩虹特效重叠）
+            if (p.getActivePowerUp() != null && !p.getActivePowerUp().isEmpty() && !invincible) {
                 gc.setStroke(Color.web("#4ecca3", 0.5));
                 gc.setLineWidth(2);
                 gc.strokeOval(p.getX() - 4, sy - 4, p.getWidth() + 8, p.getHeight() + 8);
@@ -553,6 +551,7 @@ public class Renderer {
     }
     private void drawHUD(Player me) {
         if (me == null) return;
+        gc.setTextAlign(TextAlignment.LEFT);
         gc.setFill(Color.web("white"));
         gc.setFont(Font.font("Segoe UI Emoji", 18));
         String scoreText = "分数: " + me.getScore();
@@ -581,7 +580,7 @@ public class Renderer {
             gc.fillText("💰 " + me.getCoinsCollected(), 15, 100);
         }
 
-        // 收集物进度显示
+        // 收集物进度显示 —— 形状与局内一致
         String cType = me.getCollectibleType();
         int cCount = me.getCollectibleCount();
         if (cType != null && !cType.isEmpty() && cCount > 0) {
@@ -590,18 +589,47 @@ public class Renderer {
             String label;
             String color;
             switch (cType) {
-                case "A" -> { label = "A"; color = "#FF6B6B"; }
-                case "B" -> { label = "B"; color = "#4ECDC4"; }
-                case "C" -> { label = "C"; color = "#FFE66D"; }
+                case "A" -> { label = "A"; color = "#f1c40f"; }
+                case "B" -> { label = "B"; color = "#3498db"; }
+                case "C" -> { label = "C"; color = "#e74c3c"; }
                 default -> { label = cType; color = "#aaa"; }
             }
-            // 绘制收集进度：已收集的用亮色，未收集的用暗色
+            // 绘制收集进度：已收集的用亮色+对应形状，未收集的用暗色轮廓
             for (int ci = 0; ci < 3; ci++) {
-                gc.setFill(Color.web(ci < cCount ? color : "#444444"));
-                gc.fillOval(15 + ci * 24, hudY, 18, 18);
-                gc.setFill(Color.web(ci < cCount ? "#fff" : "#666"));
-                gc.setFont(Font.font("Segoe UI Emoji", 11));
-                gc.fillText(label, 19 + ci * 24, hudY + 14);
+                double cx = 24 + ci * 24;
+                double cy = hudY + 9;
+                boolean collected = ci < cCount;
+                gc.setFill(Color.web(collected ? color : "#444444"));
+                gc.setStroke(Color.web(collected ? "#fff" : "#666"));
+                gc.setLineWidth(1);
+                switch (cType) {
+                    case "A" -> {
+                        // 星形（与局内一致）
+                        drawStar(cx, cy, 9, 4, 5);
+                        if (!collected) drawStarStroke(cx, cy, 9, 4, 5);
+                    }
+                    case "B" -> {
+                        // 菱形（与局内一致）
+                        gc.fillPolygon(
+                            new double[]{cx, cx + 9, cx, cx - 9},
+                            new double[]{cy - 9, cy, cy + 9, cy}, 4);
+                        if (!collected) gc.strokePolygon(
+                            new double[]{cx, cx + 9, cx, cx - 9},
+                            new double[]{cy - 9, cy, cy + 9, cy}, 4);
+                    }
+                    case "C" -> {
+                        // 圆形（与局内心形不同，HUD用圆形更紧凑）
+                        gc.fillOval(cx - 9, cy - 9, 18, 18);
+                        if (!collected) gc.strokeOval(cx - 9, cy - 9, 18, 18);
+                    }
+                    default -> {
+                        gc.fillOval(cx - 9, cy - 9, 18, 18);
+                        if (!collected) gc.strokeOval(cx - 9, cy - 9, 18, 18);
+                    }
+                }
+                gc.setFill(Color.web(collected ? "#fff" : "#666"));
+                gc.setFont(Font.font("Segoe UI Emoji", 10));
+                gc.fillText(label, cx - 3, cy + 4);
             }
         }
 

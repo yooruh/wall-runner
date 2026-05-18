@@ -32,6 +32,15 @@ public class StateManager {
     public void initLocalState(String playerName) {
         state = new GameState();
         Player local = new Player(localPlayerId, playerName);
+        // 应用保存的自定义颜色
+        java.util.prefs.Preferences prefs = java.util.prefs.Preferences.userNodeForPackage(com.wallrunner.client.controller.SettingsController.class);
+        boolean autoColor = prefs.getBoolean("auto_color", true);
+        if (!autoColor) {
+            String fill = prefs.get("fill_color", "");
+            String stroke = prefs.get("stroke_color", "");
+            if (fill != null && !fill.isEmpty()) local.setFillColor(fill);
+            if (stroke != null && !stroke.isEmpty()) local.setStrokeColor(stroke);
+        }
         state.getPlayers().put(localPlayerId, local);
         GamePhysics.initState(state);
         state.setPhase("menu");

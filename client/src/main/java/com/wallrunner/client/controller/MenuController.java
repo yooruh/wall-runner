@@ -42,6 +42,8 @@ public class MenuController {
             stateManager.saveName(val);
             wsService.setPlayerName(val);
         });
+        // 加载保存的自定义颜色设置
+        wsService.loadSavedColors();
         if (btnCopyRoom != null) {
             btnCopyRoom.setVisible(false);
             btnCopyRoom.setManaged(false);

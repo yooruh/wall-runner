@@ -6,9 +6,9 @@
 
 <VBox fx:id="mainMenu" styleClass="menu-root" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.wallrunner.client.controller.MenuController"
-      alignment="CENTER" spacing="15">
+      alignment="CENTER" spacing="10">
     <padding>
-        <Insets top="40" right="30" bottom="40" left="30"/>
+        <Insets top="20" right="30" bottom="20" left="30"/>
     </padding>
 
     <Label fx:id="titleLabel" text="墙间跑酷 联机版" styleClass="menu-title"/>
@@ -19,19 +19,19 @@
         <TextField fx:id="playerNameField" promptText="输入你的名字" styleClass="name-input"/>
     </HBox>
 
-    <VBox styleClass="mode-card" spacing="0">
+    <VBox styleClass="mode-card" spacing="0" style="-fx-padding: 8 12 8 12;">
         <Label text="🎮 单人模式" styleClass="mode-title"/>
         <Label text="离线本地游戏，无需网络连接，随时练习技巧。" styleClass="mode-desc" wrapText="true"/>
         <Button fx:id="btnSingle" text="开始单人游戏" styleClass="menu-btn" onAction="#onSinglePlayer"/>
     </VBox>
 
-    <VBox styleClass="mode-card" spacing="0">
+    <VBox styleClass="mode-card" spacing="0" style="-fx-padding: 8 12 8 12;">
         <Label text="🌐 公共服务器" styleClass="mode-title"/>
         <Label text="服务端运行权威地图，所有人公平竞技。" styleClass="mode-desc" wrapText="true"/>
         <Button fx:id="btnDedicated" text="进入公共服务器" styleClass="menu-btn" onAction="#onDedicated"/>
     </VBox>
 
-    <VBox styleClass="mode-card" spacing="0">
+    <VBox styleClass="mode-card" spacing="0" style="-fx-padding: 8 12 8 12;">
         <Label text="🏠 数据转发（P2P）" styleClass="mode-title"/>
         <Label text="房主浏览器作为主机运行游戏，服务器只转发数据。" styleClass="mode-desc" wrapText="true"/>
         <HBox spacing="8" alignment="CENTER">
@@ -48,7 +48,7 @@
 
     <HBox alignment="CENTER">
         <padding>
-            <Insets top="20"/>
+            <Insets top="10"/>
         </padding>
         <Button fx:id="btnSettings" text="⚙ 游戏设置" styleClass="menu-btn, settings-btn" onAction="#onOpenSettings"/>
     </HBox>
