@@ -6,6 +6,7 @@ import com.wallrunner.shared.entity.Player;
 
 import java.util.*;
 
+import com.wallrunner.shared.constants.GameConstants;
 import static com.wallrunner.shared.constants.GameConstants.*;
 
 /**
@@ -72,6 +73,44 @@ public class GamePhysics {
         // 1. 障碍物移动与回收（基于最后一名玩家的摄像机）
         updateObstacles(state, activePlayers);
 
+        // 【修复】处理击退+旋转+闪烁状态
+        for (Player p : activePlayers) {
+            // 击退阶段：被弹出墙壁，利用重力下落，缓慢旋转
+            if (p.isKnockedBack()) {
+                p.setKnockbackTimer(p.getKnockbackTimer() - 0.016);
+                // 击退阶段物理：更大重力快速下落
+                p.setVy(p.getVy() + GameConstants.KNOCKBACK_GRAVITY);
+                p.setY(p.getY() + p.getVy());
+                // 旋转动画：缓慢向目标角度倾斜
+                double currentRot = p.getRotationAngle();
+                double targetRot = p.getTargetRotation();
+                double diff = targetRot - currentRot;
+                if (Math.abs(diff) > 0.5) {
+                    p.setRotationAngle(currentRot + Math.signum(diff) * GameConstants.KNOCKBACK_ROTATION_SPEED);
+                }
+                // 检查是否回到墙壁（击退结束条件之一）
+                boolean backToWall = ("left".equals(p.getSide()) && p.getX() <= WALL_WIDTH + 5)
+                        || ("right".equals(p.getSide()) && p.getX() >= CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5);
+                if (backToWall || p.getKnockbackTimer() <= 0) {
+                    // 击退结束：恢复正常状态
+                    p.setKnockedBack(false);
+                    p.setKnockbackTimer(0);
+                    p.setRotationAngle(0);  // 恢复正常角度
+                    p.setTargetRotation(0);
+                    // 如果闪烁时间还没结束，继续保持无敌但恢复正常物理
+                }
+            }
+
+            // 闪烁倒计时（独立于击退）
+            if (p.isInvincible()) {
+                p.setInvincibleTimer(p.getInvincibleTimer() - 0.016);
+                if (p.getInvincibleTimer() <= 0) {
+                    p.setInvincible(false);
+                    p.setInvincibleTimer(0);
+                }
+            }
+        }
+
         // 2. 玩家移动与碰撞
         Map<String, Boolean> blockedMap = new HashMap<>();
         List<Player> collidable = new ArrayList<>();
@@ -85,12 +124,13 @@ public class GamePhysics {
             }
         }
 
-        // 3. 玩家间碰撞（暂停玩家不参与碰撞）
+        // 3. 玩家间碰撞（暂停/闪烁玩家不参与碰撞）
         for (int i = 0; i < collidable.size(); i++) {
             for (int j = i + 1; j < collidable.size(); j++) {
                 Player a = collidable.get(i);
                 Player b = collidable.get(j);
                 if (a.isPaused() || b.isPaused()) continue;
+                if (a.isInvincible() || b.isInvincible()) continue; // 【修复】闪烁状态免碰撞
                 if (checkPlayerCollision(a, b)) {
                     resolvePlayerCollision(a, b);
                 }
@@ -429,6 +469,24 @@ public class GamePhysics {
         double dy = (a.getY() + a.getHeight() / 2) - (b.getY() + b.getHeight() / 2);
         double overlapX = (a.getWidth() + b.getWidth()) / 2 - Math.abs(dx);
         double overlapY = (a.getHeight() + b.getHeight()) / 2 - Math.abs(dy);
+
+        // 【修复】跳跃玩家撞击非跳跃玩家时，被撞者进入"击退+旋转+闪烁"状态
+        boolean aJumping = a.isJumping();
+        boolean bJumping = b.isJumping();
+        if (aJumping && !bJumping) {
+            // A(跳跃) 撞击 B(非跳跃)：B 被击退，A 继续飞行
+            applyKnockback(b, a.getSide());  // B 向 A 来向的反方向击退
+            // A 获得向目标墙的额外水平速度，避免停滞
+            double pushX = "left".equals(a.getSide()) ? JUMP_SPEED * 0.8 : -JUMP_SPEED * 0.8;
+            a.setX(a.getX() + pushX);
+        } else if (bJumping && !aJumping) {
+            // B(跳跃) 撞击 A(非跳跃)：A 被击退，B 继续飞行
+            applyKnockback(a, b.getSide());
+            double pushX = "left".equals(b.getSide()) ? JUMP_SPEED * 0.8 : -JUMP_SPEED * 0.8;
+            b.setX(b.getX() + pushX);
+        }
+
+        // 位置分离：防止玩家重叠
         if (overlapX < overlapY) {
             double shift = overlapX / 2;
             a.setX(a.getX() + (dx > 0 ? shift : -shift));
@@ -438,6 +496,33 @@ public class GamePhysics {
             a.setY(a.getY() + (dy > 0 ? shift : -shift));
             b.setY(b.getY() + (dy > 0 ? -shift : shift));
         }
+    }
+
+    /**
+     * 应用击退效果：被弹出墙壁一小段距离，进入闪烁无敌，开始旋转动画。
+     * victim: 被撞者, attackerSide: 撞击者所在侧（决定击退方向）
+     */
+    private static void applyKnockback(Player victim, String attackerSide) {
+        // 1. 进入闪烁无敌状态
+        victim.setInvincible(true);
+        victim.setInvincibleTimer(2.5);  // 2.5秒无敌（含击退+恢复时间）
+
+        // 2. 击退状态：被弹出墙壁
+        victim.setKnockedBack(true);
+        victim.setKnockbackTimer(1.5);     // 击退阶段持续1.5秒
+
+        // 3. 物理弹出：向墙壁外侧弹出
+        boolean pushToLeft = "right".equals(attackerSide);  // 若撞击者在右侧，受害者向左弹出
+        double pushDir = pushToLeft ? -1.0 : 1.0;
+        victim.setX(victim.getX() + pushDir * GameConstants.KNOCKBACK_PUSH_X);
+        victim.setVy(GameConstants.KNOCKBACK_VY);  // 向上轻弹
+
+        // 4. 旋转动画：向弹出方向倾斜
+        victim.setTargetRotation(pushToLeft ? -GameConstants.KNOCKBACK_ROTATION : GameConstants.KNOCKBACK_ROTATION);
+        victim.setRotationAngle(0);  // 从0开始旋转
+
+        // 5. 结束跳跃状态（如果正在跳跃）
+        victim.setJumping(false);
     }
 
     private static boolean rectIntersect(double x1, double y1, double w1, double h1,

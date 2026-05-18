@@ -244,8 +244,15 @@ public class GameController {
 
     private void onModeConfirmed(Map<String, Object> msg) {
         String pid = (String) msg.get("playerId");
+        String fillColor = (String) msg.get("fillColor");
+        String strokeColor = (String) msg.get("strokeColor");
         ws.setMyId(pid);
         sm.setLocalPlayerId(pid);
+        // 保存服务器分配的颜色
+        if (fillColor != null && !fillColor.isEmpty()) {
+            ws.setFillColor(fillColor);
+            ws.setStrokeColor(strokeColor);
+        }
         // 客机不预创建状态，等待权威state通过reconcile同步
         if (isOffline() || isHost()) {
             sm.initLocalState(ws.getPlayerName());
@@ -255,8 +262,14 @@ public class GameController {
 
     private void onRoomCreated(Map<String, Object> msg) {
         String rid = (String) msg.get("roomId");
+        String fillColor = (String) msg.get("fillColor");
+        String strokeColor = (String) msg.get("strokeColor");
         ws.setMyId(ws.getClientId());
         ws.setCurrentRoomId(rid);
+        if (fillColor != null && !fillColor.isEmpty()) {
+            ws.setFillColor(fillColor);
+            ws.setStrokeColor(strokeColor);
+        }
         Platform.runLater(() -> updateRoomDisplay(rid));
         setConnStatus("● 已连接", true);
     }
@@ -264,9 +277,15 @@ public class GameController {
     private void onJoinedRoom(Map<String, Object> msg) {
         String rid = (String) msg.get("roomId");
         String pid = (String) msg.get("playerId");
+        String fillColor = (String) msg.get("fillColor");
+        String strokeColor = (String) msg.get("strokeColor");
         ws.setMyId(pid);
         ws.setCurrentRoomId(rid);
         sm.setLocalPlayerId(pid);
+        if (fillColor != null && !fillColor.isEmpty()) {
+            ws.setFillColor(fillColor);
+            ws.setStrokeColor(strokeColor);
+        }
         // 客机不预创建状态，等待房主广播权威state
         Platform.runLater(() -> {
             if (roomIdDisplay != null) roomIdDisplay.setText("房间: " + rid);
@@ -277,6 +296,8 @@ public class GameController {
     private void onPlayerJoined(Map<String, Object> msg) {
         String name = (String) msg.get("name");
         String pid = (String) msg.get("playerId");
+        String fillColor = (String) msg.get("fillColor");
+        String strokeColor = (String) msg.get("strokeColor");
         showHint(name + " 加入了房间");
         if (!isHost() || pid == null) return;
 
@@ -284,8 +305,15 @@ public class GameController {
         if (state == null) return;
         if (!state.getPlayers().containsKey(pid)) {
             Player joiner = new Player(pid, name);
-            joiner.setColor(com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS[
-                    Math.abs(pid.hashCode()) % com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS.length]);
+            // 使用服务器分配的颜色（如果有）
+            if (fillColor != null && !fillColor.isEmpty()) {
+                joiner.setFillColor(fillColor);
+                joiner.setStrokeColor(strokeColor);
+                joiner.setColor(fillColor);
+            } else {
+                joiner.setColor(com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS[
+                        Math.abs(pid.hashCode()) % com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS.length]);
+            }
             GamePhysics.initJoiningPlayer(state, joiner);
             state.getPlayers().put(pid, joiner);
         }
@@ -401,6 +429,8 @@ public class GameController {
         loop.stop();
         ws.disconnect();
         sm.reset();
+        // 【修复】重置静态模式变量，避免返回菜单后旧模式残留影响下次进入
+        currentMode = Mode.SINGLE;
         ClientApplication.switchScene("/com/wallrunner/client/view/menu.fxml");
     }
 
@@ -530,8 +560,11 @@ public class GameController {
 
     private void setConnStatus(String text, boolean ok) {
         if (connStatus == null) return;
-        connStatus.setText(text);
-        connStatus.setStyle("-fx-text-fill: " + (ok ? "#4ecca3" : "#ff6b6b") + ";");
+        // 【修复】WebSocket 回调在后台线程，所有 UI 操作必须走 FX 线程
+        Platform.runLater(() -> {
+            connStatus.setText(text);
+            connStatus.setStyle("-fx-text-fill: " + (ok ? "#4ecca3" : "#ff6b6b") + ";");
+        });
     }
 
     private void showHint(String text) {

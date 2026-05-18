@@ -124,6 +124,14 @@ public class StateManager {
         local.setJoinOffsetY(auth.getJoinOffsetY());
         local.setTimeBonusScore(auth.getTimeBonusScore());
         local.setDisconnected(auth.isDisconnected());
+        local.setInvincible(auth.isInvincible());
+        local.setInvincibleTimer(auth.getInvincibleTimer());
+        local.setFillColor(auth.getFillColor());
+        local.setStrokeColor(auth.getStrokeColor());
+        local.setRotationAngle(auth.getRotationAngle());
+        local.setKnockedBack(auth.isKnockedBack());
+        local.setKnockbackTimer(auth.getKnockbackTimer());
+        local.setTargetRotation(auth.getTargetRotation());
     }
 
     /** 完全复制玩家属性 */
@@ -143,6 +151,14 @@ public class StateManager {
         target.setJoinOffsetY(source.getJoinOffsetY());
         target.setTimeBonusScore(source.getTimeBonusScore());
         target.setDisconnected(source.isDisconnected());
+        target.setInvincible(source.isInvincible());
+        target.setInvincibleTimer(source.getInvincibleTimer());
+        target.setFillColor(source.getFillColor());
+        target.setStrokeColor(source.getStrokeColor());
+        target.setRotationAngle(source.getRotationAngle());
+        target.setKnockedBack(source.isKnockedBack());
+        target.setKnockbackTimer(source.getKnockbackTimer());
+        target.setTargetRotation(source.getTargetRotation());
     }
 
     /** 深拷贝玩家 */

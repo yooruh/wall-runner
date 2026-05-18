@@ -22,6 +22,9 @@ import javafx.scene.input.ClipboardContent;
  *       2. 创建/加入房间前同样检查连接状态。
  *       3. 统一使用 ClientApplication 的窗口尺寸切换，避免窗口忽大忽小。
  *       4. 支持自定义房间码（大写字母+数字），创建后显示并可复制。
+ * 【修复】2026-05-11:
+ *       1. 所有模式切换必须先 setMode 再 switchScene，确保 GameController.initialize()
+ *          读取到正确的 currentMode，避免旧模式残留导致状态初始化异常。
  */
 public class MenuController {
 
@@ -81,8 +84,9 @@ public class MenuController {
     private void onSinglePlayer() {
         saveName();
         setButtonsDisabled(true);
-        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
+        // 【修复】先 setMode，再 switchScene，确保 GameController 读取正确模式
         GameController.setMode(GameController.Mode.SINGLE);
+        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
 
     @FXML
@@ -98,8 +102,9 @@ public class MenuController {
             }
         }
         wsService.joinDedicated(getName());
-        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
+        // 【修复】先 setMode，再 switchScene
         GameController.setMode(GameController.Mode.DEDICATED);
+        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
 
     @FXML
@@ -121,8 +126,9 @@ public class MenuController {
             }
         }
         wsService.createRoom(getName(), customId.isEmpty() ? null : customId);
-        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
+        // 【修复】先 setMode，再 switchScene
         GameController.setMode(GameController.Mode.RELAY_HOST);
+        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
 
     @FXML
@@ -147,8 +153,9 @@ public class MenuController {
             }
         }
         wsService.joinRoom(roomId, getName());
-        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
+        // 【修复】先 setMode，再 switchScene
         GameController.setMode(GameController.Mode.RELAY_GUEST);
+        ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
 
     @FXML

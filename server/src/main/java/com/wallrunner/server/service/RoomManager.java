@@ -5,8 +5,8 @@ import com.wallrunner.shared.entity.Player;
 import com.wallrunner.shared.physics.GamePhysics;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,24 +17,34 @@ import java.util.concurrent.ConcurrentHashMap;
  * 【修复】2026-05-08: 新增 createRoom(String roomId, String hostSessionId)，
  *        支持公共服务器使用自定义房间 ID，避免 getOrCreateRoom() 中 roomId 不匹配导致 NPE。
  * 【修复】2026-05-10:
- *       1. createRoom 初始化 phase 为 "menu"，与房主客户端保持一致，
- *          解决 P2P 客机收到初始状态后 phase="lobby" 导致无法开始游戏的问题。
+ *       1. createRoom 初始化 phase 为 "menu"，与房主客户端保持一致。
+ * 【修复】2026-05-11:
+ *       1. 随机房间号生成改为大写字母+数字组合（6位），避免纯数字房间号。
  */
 @Service
 public class RoomManager {
     private final Map<String, GameState> rooms = new ConcurrentHashMap<>();
     private final Map<String, String> roomHostMap = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Integer>> leftPlayerScores = new ConcurrentHashMap<>();
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
+    private static final String ROOM_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 去除易混淆字符 I1O0
 
     public String createRoom(String hostSessionId) {
-        String roomId = String.format("%06d", random.nextInt(1000000));
+        String roomId = generateRoomId();
         return createRoom(roomId, hostSessionId);
+    }
+
+    private String generateRoomId() {
+        StringBuilder sb = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) {
+            sb.append(ROOM_CHARS.charAt(random.nextInt(ROOM_CHARS.length())));
+        }
+        return sb.toString();
     }
 
     public String createRoom(String roomId, String hostSessionId) {
         GameState state = new GameState();
-        state.setPhase("menu"); // 【修复】统一为 menu，与房主客户端一致
+        state.setPhase("menu");
         rooms.put(roomId, state);
         roomHostMap.put(roomId, hostSessionId);
         return roomId;
@@ -57,12 +67,11 @@ public class RoomManager {
     public boolean joinRoom(String roomId, Player player) {
         GameState state = rooms.get(roomId);
         if (state == null) return false;
-        // 恢复之前保存的分数（如果有）
         Map<String, Integer> scores = leftPlayerScores.get(roomId);
         if (scores != null && scores.containsKey(player.getId())) {
             int savedScore = scores.get(player.getId());
             player.setScore(savedScore);
-            player.setTimeBonusScore(savedScore); // 近似恢复
+            player.setTimeBonusScore(savedScore);
         }
         player.setDisconnected(false);
         state.getPlayers().put(player.getId(), player);
@@ -74,7 +83,6 @@ public class RoomManager {
         if (state != null) {
             Player p = state.getPlayers().get(playerId);
             if (p != null) {
-                // 保存分数，标记断开
                 p.setDisconnected(true);
                 leftPlayerScores.computeIfAbsent(roomId, k -> new ConcurrentHashMap<>()).put(playerId, p.getScore());
             }

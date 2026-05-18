@@ -52,6 +52,9 @@ public class WebSocketClientService {
     private String myId;
     private double timeBonusInterval = 5.0;
     private int timeBonusPoints = 10;
+    // 【新增】自定义角色颜色
+    private String fillColor = "";
+    private String strokeColor = "";
 
     // 【修复】纯内存 clientId，每个进程独立，多窗口不冲突
     private final String clientId = UUID.randomUUID().toString();
@@ -98,11 +101,30 @@ public class WebSocketClientService {
 
     // 协议：mode_select
     public void joinDedicated(String name) {
-        send(Map.of("type", "mode_select", "mode", "dedicated", "name", name, "clientId", clientId));
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "mode_select");
+        msg.put("mode", "dedicated");
+        msg.put("name", name);
+        msg.put("clientId", clientId);
+        if (fillColor != null && !fillColor.isEmpty()) {
+            msg.put("fillColor", fillColor);
+            msg.put("strokeColor", strokeColor);
+        }
+        send(msg);
     }
 
     public void createRoom(String name) {
-        send(Map.of("type", "mode_select", "mode", "relay", "role", "create", "name", name, "clientId", clientId));
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "mode_select");
+        msg.put("mode", "relay");
+        msg.put("role", "create");
+        msg.put("name", name);
+        msg.put("clientId", clientId);
+        if (fillColor != null && !fillColor.isEmpty()) {
+            msg.put("fillColor", fillColor);
+            msg.put("strokeColor", strokeColor);
+        }
+        send(msg);
     }
 
     public void createRoom(String name, String customRoomId) {
@@ -115,11 +137,26 @@ public class WebSocketClientService {
         if (customRoomId != null && !customRoomId.isEmpty()) {
             msg.put("roomId", customRoomId);
         }
+        if (fillColor != null && !fillColor.isEmpty()) {
+            msg.put("fillColor", fillColor);
+            msg.put("strokeColor", strokeColor);
+        }
         send(msg);
     }
 
     public void joinRoom(String roomId, String name) {
-        send(Map.of("type", "mode_select", "mode", "relay", "role", "join", "roomId", roomId, "name", name, "clientId", clientId));
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "mode_select");
+        msg.put("mode", "relay");
+        msg.put("role", "join");
+        msg.put("roomId", roomId);
+        msg.put("name", name);
+        msg.put("clientId", clientId);
+        if (fillColor != null && !fillColor.isEmpty()) {
+            msg.put("fillColor", fillColor);
+            msg.put("strokeColor", strokeColor);
+        }
+        send(msg);
     }
 
     public void sendInput(String action) {
@@ -181,6 +218,10 @@ public class WebSocketClientService {
     public void setTimeBonusInterval(double v) { this.timeBonusInterval = v > 0 ? v : 5.0; }
     public int getTimeBonusPoints() { return timeBonusPoints; }
     public void setTimeBonusPoints(int v) { this.timeBonusPoints = v >= 0 ? v : 10; }
+    public String getFillColor() { return fillColor; }
+    public void setFillColor(String v) { this.fillColor = v != null ? v : ""; }
+    public String getStrokeColor() { return strokeColor; }
+    public void setStrokeColor(String v) { this.strokeColor = v != null ? v : ""; }
 
     private class WsListener implements WebSocket.Listener {
         // 【关键修复】累积分片消息，处理大 JSON 被拆分为多帧的情况

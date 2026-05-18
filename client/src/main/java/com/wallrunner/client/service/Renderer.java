@@ -20,8 +20,11 @@ import java.util.List;
  * 【职责】Canvas 渲染管线。
  * 【重构】2026-05-08: render 接收外部 cameraY，支持每个玩家独立视角。
  * 【修复】2026-05-10:
- *       1. render 方法新增 localPlayerId 参数，彻底替换硬编码 "local"，
- *          支持客户端持久化 ID 作为本地玩家标识。
+ *       1. render 方法新增 localPlayerId 参数，彻底替换硬编码 "local"。
+ * 【修复】2026-05-11:
+ *       1. 使用 fillColor + strokeColor 渲染玩家，支持自定义颜色。
+ *       2. 渲染击退旋转动画：玩家被撞击后缓慢倾斜旋转。
+ *       3. 闪烁无敌状态半透明闪烁效果。
  */
 public class Renderer {
 
@@ -187,24 +190,57 @@ public class Renderer {
             double sy = p.getY() - cameraY;
             if (sy < -100 || sy > 700) continue;
 
-            String bodyColor = p.getColor() != null ? p.getColor() : "#4ecca3";
-            // 【修复】使用传入的 localPlayerId 判断"是否是我"，替换硬编码 "local"
+            // 【修复】使用 fillColor + strokeColor，优先于旧 color 字段
+            String fillColor = p.getFillColor() != null && !p.getFillColor().isEmpty()
+                    ? p.getFillColor() : (p.getColor() != null ? p.getColor() : "#4ecca3");
+            String strokeColor = p.getStrokeColor() != null && !p.getStrokeColor().isEmpty()
+                    ? p.getStrokeColor() : fillColor;
+
             boolean isMe = p.getId().equals(localPlayerId);
             boolean isPaused = p.isPaused();
+            boolean invincible = p.isInvincible();
+            boolean knockedBack = p.isKnockedBack();
+            double rotation = p.getRotationAngle();
 
             gc.save();
             if (isPaused) gc.setGlobalAlpha(0.4);
 
-            if (p.isJumping()) {
-                gc.setFill(Color.web(bodyColor, 0.4));
+            if (p.isJumping() && !knockedBack) {
+                gc.setFill(Color.web(fillColor, 0.4));
                 double tailX = "left".equals(p.getSide()) ? -12 : 12;
                 gc.fillRect(p.getX() + tailX, sy + 15, p.getWidth(), p.getHeight() - 25);
-                gc.setFill(Color.web(bodyColor, 0.15));
+                gc.setFill(Color.web(fillColor, 0.15));
                 gc.fillRect(p.getX() + tailX * 1.8, sy + 25, p.getWidth(), p.getHeight() - 30);
             }
 
-            gc.setFill(Color.web(bodyColor));
+            // 闪烁效果
+            if (invincible) {
+                double alpha = (System.currentTimeMillis() % 200 < 100) ? 0.3 : 0.7;
+                gc.setGlobalAlpha(alpha);
+            }
+
+            // 【关键修复】击退旋转动画：以玩家中心为原点旋转
+            double centerX = p.getX() + p.getWidth() / 2;
+            double centerY = sy + p.getHeight() / 2;
+            if (knockedBack && Math.abs(rotation) > 0.1) {
+                gc.translate(centerX, centerY);
+                gc.rotate(rotation);
+                gc.translate(-centerX, -centerY);
+            }
+
+            // 绘制玩家主体（填充+描边）
+            gc.setFill(Color.web(fillColor));
             gc.fillRect(p.getX(), sy, p.getWidth(), p.getHeight());
+            gc.setStroke(Color.web(strokeColor));
+            gc.setLineWidth(2);
+            gc.strokeRect(p.getX(), sy, p.getWidth(), p.getHeight());
+
+            // 恢复变换
+            if (knockedBack && Math.abs(rotation) > 0.1) {
+                gc.translate(centerX, centerY);
+                gc.rotate(-rotation);
+                gc.translate(-centerX, -centerY);
+            }
 
             if (isMe) {
                 gc.setStroke(Color.web("rgba(255,255,255,0.9)"));
@@ -212,6 +248,11 @@ public class Renderer {
                 gc.strokeRect(p.getX() - 2, sy - 2, p.getWidth() + 4, p.getHeight() + 4);
             }
 
+            if (invincible) {
+                gc.setGlobalAlpha(1.0);
+            }
+
+            // 眼睛
             gc.setFill(Color.web("#1a1a2e"));
             if ("left".equals(p.getSide())) {
                 gc.fillRect(p.getX() + 5, sy + 8, 6, 6);
@@ -221,6 +262,7 @@ public class Renderer {
                 gc.fillRect(p.getX() + 19, sy + 18, 6, 6);
             }
 
+            // 名字
             gc.setFill(Color.web(isPaused ? "rgba(255,255,255,0.6)" : "white"));
             gc.setFont(Font.font("Segoe UI Emoji", 11));
             gc.fillText(p.getName() != null ? p.getName() : "玩家", p.getX() + p.getWidth() / 2, sy - 8);
@@ -231,6 +273,7 @@ public class Renderer {
                 gc.fillText("暂停", p.getX() + p.getWidth() / 2, sy - 20);
             }
 
+            // 分数
             gc.setFont(Font.font("Segoe UI Emoji", 10));
             gc.setFill(Color.web("#aaa"));
             gc.fillText(p.getScore() + "分", p.getX() + p.getWidth() / 2, sy - (isPaused ? 32 : 18));
@@ -245,7 +288,6 @@ public class Renderer {
         gc.setFont(Font.font("Segoe UI Emoji", 18));
         gc.fillText("分数: " + me.getScore(), 15, 28);
 
-        // 高度显示：若有中途加入偏移，在右侧标注
         int heightVal = (int) (-me.getY() / 10);
         String heightText = "高度: " + heightVal;
         if (me.getJoinOffsetY() != 0 && me.getJoinOffsetY() != 300) {
@@ -268,7 +310,6 @@ public class Renderer {
             frameCount = 0;
             lastFpsTime = now;
         }
-        // 【修复】背景框与文字对齐，文字完全位于框内
         String fpsText = "FPS: " + currentFps;
         gc.setTextAlign(TextAlignment.LEFT);
         gc.setFill(Color.web("rgba(0,0,0,0.6)"));

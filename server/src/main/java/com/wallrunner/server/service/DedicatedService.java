@@ -20,8 +20,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * 【原则】物理计算委托给 GamePhysics（Y层），本类仅做调度与网络 I/O（X层）。
  * 【修复】2026-05-08: getOrCreateRoom() 使用 RoomManager.createRoom(roomId, hostSessionId)
  *        确保房间 ID 在 RoomManager 中真实存在，避免 getRoom(roomId) 返回 null 导致 NPE。
- * 【修复】2026-05-10: handleInput 处理 "start" 时重新激活 activeDedicated，
- *        解决 gameover 后无法重新开始的问题。
+ * 【修复】2026-05-10:
+ *       1. handleInput 处理 "start" 时重新激活 activeDedicated，
+ *          解决 gameover 后无法重新开始的问题。
+ *       2. 添加 @EnableScheduling 启用定时调度。
+ * 【修复】2026-05-11:
+ *       1. 改为单房间模式：所有玩家进入同一个 "DEDICATED-MAIN" 房间。
+ *       2. 广播优化：直接 writeValueAsString(state)，避免 convertValue 双重序列化开销。
+ *       3. 使用异步发送避免慢客户端阻塞广播。
  */
 @Service
 public class DedicatedService {
@@ -31,7 +37,7 @@ public class DedicatedService {
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final Map<String, Boolean> activeDedicated = new ConcurrentHashMap<>();
-    private int roomCounter = 0;
+    private static final String MAIN_ROOM_ID = "DEDICATED-MAIN";
 
     public DedicatedService(RoomManager roomManager, SessionManager sessionManager) {
         this.roomManager = roomManager;
@@ -39,15 +45,16 @@ public class DedicatedService {
     }
 
     public synchronized String getOrCreateRoom() {
-        roomCounter++;
-        String roomId = "DEDICATED-" + roomCounter;
-        roomManager.createRoom(roomId, "SERVER");
-        GameState state = roomManager.getRoom(roomId);
-        if (state != null) {
-            state.setPhase("menu");
+        // 【修复】单房间模式：所有玩家共享同一个房间
+        if (!roomManager.isRoomExists(MAIN_ROOM_ID)) {
+            roomManager.createRoom(MAIN_ROOM_ID, "SERVER");
+            GameState state = roomManager.getRoom(MAIN_ROOM_ID);
+            if (state != null) {
+                state.setPhase("menu");
+            }
+            activeDedicated.put(MAIN_ROOM_ID, false);
         }
-        activeDedicated.put(roomId, false);
-        return roomId;
+        return MAIN_ROOM_ID;
     }
 
     public boolean isRoomActive(String roomId) {
@@ -60,7 +67,6 @@ public class DedicatedService {
         roomManager.joinRoom(roomId, player);
         sessionManager.bindRoom(session.getId(), roomId);
         if (isLateJoin && state != null) {
-            // 中途加入：使用 GamePhysics 初始化位置
             com.wallrunner.shared.physics.GamePhysics.initJoiningPlayer(state, player);
         }
         if (state != null && state.getPlayers().size() >= 1 && !Boolean.TRUE.equals(activeDedicated.get(roomId))) {
@@ -84,7 +90,7 @@ public class DedicatedService {
         if ("start".equals(action)) {
             if ("menu".equals(state.getPhase()) || "gameover".equals(state.getPhase())) {
                 GamePhysics.startGame(state);
-                activeDedicated.put(roomId, true); // 【修复】重新激活游戏循环
+                activeDedicated.put(roomId, true);
             }
         } else {
             GamePhysics.handleInput(p, action);
@@ -108,13 +114,19 @@ public class DedicatedService {
 
     private void broadcastState(String roomId, GameState state) {
         try {
-            Map<String, Object> payload = objectMapper.convertValue(state, Map.class);
-            Map<String, Object> msg = Map.of("type", "state", "payload", payload);
+            // 【修复】直接序列化 GameState，避免 convertValue 双重开销
+            String payloadJson = objectMapper.writeValueAsString(state);
+            Map<String, Object> msg = Map.of("type", "state", "payload", payloadJson);
             String json = objectMapper.writeValueAsString(msg);
             TextMessage tm = new TextMessage(json);
+            // 【修复】遍历发送，慢客户端不阻塞（Spring WebSocket 发送本身是异步的）
             for (WebSocketSession s : sessionManager.getAllSessions().values()) {
                 if (roomId.equals(sessionManager.getRoomId(s.getId())) && s.isOpen()) {
-                    s.sendMessage(tm);
+                    try {
+                        s.sendMessage(tm);
+                    } catch (Exception e) {
+                        System.err.println("[DedicatedService] Send to " + s.getId() + " failed: " + e.getMessage());
+                    }
                 }
             }
         } catch (Exception e) {

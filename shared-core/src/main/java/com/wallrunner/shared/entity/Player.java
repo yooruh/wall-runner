@@ -8,11 +8,18 @@ package com.wallrunner.shared.entity;
  * 【修复】2026-05-08:
  *       1. 添加 joinOffsetY：中途加入时的高度初始值，用于公平计分。
  *       2. 添加 timeBonusScore：时间奖励累计分数，与高度分数分离。
+ * 【修复】2026-05-11:
+ *       1. 添加 invincible / invincibleTimer：玩家碰撞后的闪烁无敌状态。
+ *       2. 添加 fillColor / strokeColor：自定义角色颜色（填充+描边）。
+ *       3. 添加 rotationAngle / knockedBack / knockbackTimer：被撞后旋转动画与击退状态。
  */
 public class Player {
     private String id;
     private String name = "玩家";
+    // 【重构】color 字段保留用于向后兼容，实际使用 fillColor + strokeColor
     private String color = "#4ecca3";
+    private String fillColor = "#4ecca3";
+    private String strokeColor = "#3db892";
     private double x;
     private double y;
     private String side = "left";
@@ -27,11 +34,18 @@ public class Player {
     private double cameraY = 0;
     private double cameraTargetY = 0;
     private boolean paused = false;
-    private double joinOffsetY = 0;      // 中途加入时的初始高度偏移
-    private int timeBonusScore = 0;      // 时间奖励累计分数
-    private boolean disconnected = false; // 是否已断开连接
+    private double joinOffsetY = 0;
+    private int timeBonusScore = 0;
+    private boolean disconnected = false;
+    // 闪烁无敌状态：被撞击后 3 秒内免碰撞
+    private boolean invincible = false;
+    private double invincibleTimer = 0.0;
+    // 【新增】被撞后旋转动画与击退状态
+    private double rotationAngle = 0.0;      // 当前旋转角度（度）
+    private boolean knockedBack = false;     // 是否在被击退中
+    private double knockbackTimer = 0.0;     // 击退倒计时
+    private double targetRotation = 0.0;     // 目标旋转角度
 
-    // 必须提供无参构造用于反序列化
     public Player() {}
 
     public Player(String id, String name) {
@@ -45,6 +59,10 @@ public class Player {
     public void setName(String name) { this.name = name; }
     public String getColor() { return color; }
     public void setColor(String color) { this.color = color; }
+    public String getFillColor() { return fillColor; }
+    public void setFillColor(String fillColor) { this.fillColor = fillColor; }
+    public String getStrokeColor() { return strokeColor; }
+    public void setStrokeColor(String strokeColor) { this.strokeColor = strokeColor; }
     public double getX() { return x; }
     public void setX(double x) { this.x = x; }
     public double getY() { return y; }
@@ -79,4 +97,16 @@ public class Player {
     public void setTimeBonusScore(int timeBonusScore) { this.timeBonusScore = timeBonusScore; }
     public boolean isDisconnected() { return disconnected; }
     public void setDisconnected(boolean disconnected) { this.disconnected = disconnected; }
+    public boolean isInvincible() { return invincible; }
+    public void setInvincible(boolean invincible) { this.invincible = invincible; }
+    public double getInvincibleTimer() { return invincibleTimer; }
+    public void setInvincibleTimer(double invincibleTimer) { this.invincibleTimer = invincibleTimer; }
+    public double getRotationAngle() { return rotationAngle; }
+    public void setRotationAngle(double rotationAngle) { this.rotationAngle = rotationAngle; }
+    public boolean isKnockedBack() { return knockedBack; }
+    public void setKnockedBack(boolean knockedBack) { this.knockedBack = knockedBack; }
+    public double getKnockbackTimer() { return knockbackTimer; }
+    public void setKnockbackTimer(double knockbackTimer) { this.knockbackTimer = knockbackTimer; }
+    public double getTargetRotation() { return targetRotation; }
+    public void setTargetRotation(double targetRotation) { this.targetRotation = targetRotation; }
 }
