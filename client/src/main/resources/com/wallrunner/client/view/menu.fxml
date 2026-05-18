@@ -13,7 +13,9 @@
 
     <Label fx:id="titleLabel" text="墙间跑酷 联机版" styleClass="menu-title"/>
 
-    <HBox alignment="CENTER">
+    <!-- 玩家名称输入区：Label在左，输入框在右 -->
+    <HBox spacing="10" alignment="CENTER">
+        <Label text="玩家名称" styleClass="menu-section-label"/>
         <TextField fx:id="playerNameField" promptText="输入你的名字" styleClass="name-input"/>
     </HBox>
 
@@ -48,6 +50,6 @@
         <padding>
             <Insets top="20"/>
         </padding>
-        <Button fx:id="btnSettings" text="⚙ 游戏设置" styleClass="menu-btn, ghost" onAction="#onOpenSettings"/>
+        <Button fx:id="btnSettings" text="⚙ 游戏设置" styleClass="menu-btn, settings-btn" onAction="#onOpenSettings"/>
     </HBox>
 </VBox>

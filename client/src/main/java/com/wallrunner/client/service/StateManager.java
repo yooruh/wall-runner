@@ -9,16 +9,12 @@ import java.util.Map;
 import java.util.prefs.Preferences;
 
 /**
- * 【模块】client / service
- * 【代号】Y + Z
- * 【职责】客户端状态管理。所有模式（离线/房主/客机）的本地状态中心。
- * 【原则】
- *       1. 本地物理驱动画面，网络状态仅用于校正（reconcile）。
- *       2. reconcile 同步权威状态中的所有玩家（添加缺失、更新已有、移除离线）。
- *       3. 本地玩家使用平滑插值校正，避免画面跳变；其他玩家直接覆盖。
- * 【修复】2026-05-10:
- *       1. reconcile 全面同步：玩家、障碍物、摄像机、阶段、时间奖励等所有字段。
- *       2. 自动清理本地状态中已断开（disconnected）的玩家，避免幽灵玩家。
+ * 客户端状态管理。所有模式的本地状态中心。
+ *
+ * 原则：
+ * - 本地物理驱动画面，网络状态仅用于校正（reconcile）。
+ * - reconcile 同步权威状态中的所有玩家（添加缺失、更新已有、移除离线）。
+ * - 本地玩家使用平滑插值校正，避免画面跳变；其他玩家直接覆盖。
  */
 public class StateManager {
 
@@ -34,7 +30,6 @@ public class StateManager {
     public void setLocalPlayerId(String id) { this.localPlayerId = id; }
     public String getLocalPlayerId() { return localPlayerId; }
 
-    /** 初始化离线/房主的本地权威状态 */
     public void initLocalState(String playerName) {
         state = new GameState();
         Player local = new Player(localPlayerId, playerName);
@@ -54,12 +49,10 @@ public class StateManager {
 
     /**
      * 将权威状态平滑合并到本地状态。
-     * 适用于所有网络模式（Dedicated / P2P），确保客机画面流畅且同步。
      */
     public void reconcile(GameState auth) {
         if (auth == null) return;
 
-        // 1. 同步全局字段
         state.setPhase(auth.getPhase());
         state.setFrames(auth.getFrames());
         state.setObstacles(auth.getObstacles());
@@ -70,29 +63,29 @@ public class StateManager {
         state.setTimeBonusPoints(auth.getTimeBonusPoints());
         state.setTimeBonusAccumulator(auth.getTimeBonusAccumulator());
 
-        // 2. 同步玩家：权威状态中的玩家添加到本地，本地多余的标记为断开
+        // 预留：同步可收集物、特效、难度
+        state.setCollectibles(auth.getCollectibles());
+        state.setActiveEffects(auth.getActiveEffects());
+        state.setDifficultyLevel(auth.getDifficultyLevel());
+        state.setDifficultyAccumulator(auth.getDifficultyAccumulator());
+
         Map<String, Player> localPlayers = state.getPlayers();
         Map<String, Player> authPlayers = auth.getPlayers();
 
-        // 添加/更新权威玩家
         for (Map.Entry<String, Player> e : authPlayers.entrySet()) {
             String pid = e.getKey();
             Player authPlayer = e.getValue();
             Player localPlayer = localPlayers.get(pid);
 
             if (localPlayer == null) {
-                // 新玩家：深拷贝加入
                 localPlayers.put(pid, clonePlayer(authPlayer));
             } else if (pid.equals(localPlayerId)) {
-                // 本地玩家：平滑校正（避免画面跳变）
                 smoothCorrect(localPlayer, authPlayer);
             } else {
-                // 其他玩家：直接覆盖（网络延迟下直接覆盖更稳定）
                 copyPlayer(localPlayer, authPlayer);
             }
         }
 
-        // 3. 清理：本地有但权威已移除的玩家标记为断开（不立即删除，避免闪烁）
         for (Player p : localPlayers.values()) {
             if (!authPlayers.containsKey(p.getId())) {
                 p.setDisconnected(true);
@@ -100,24 +93,19 @@ public class StateManager {
         }
     }
 
-    /** 本地玩家平滑校正：位置差异大时直接同步，小时插值 */
     private void smoothCorrect(Player local, Player auth) {
         double dx = Math.abs(auth.getX() - local.getX());
         double dy = Math.abs(auth.getY() - local.getY());
-        // 【优化】差异小时(<2px)完全信任本地物理，避免网络校正导致卡顿感
         if (dx > 5 || dy > 5) {
-            // 差异大：直接同步（位置跳变）
             local.setX(auth.getX());
             local.setY(auth.getY());
             local.setVy(auth.getVy());
             local.setSide(auth.getSide());
             local.setJumping(auth.isJumping());
         } else if (dx > 0.5 || dy > 0.5) {
-            // 差异中等：轻微插值校正
             local.setX(local.getX() + (auth.getX() - local.getX()) * 0.15);
             local.setY(local.getY() + (auth.getY() - local.getY()) * 0.15);
         }
-        // 差异很小(<0.5px)：不做任何校正，完全信任本地物理
         local.setScore(auth.getScore());
         local.setLives(auth.getLives());
         local.setActive(auth.isActive());
@@ -140,9 +128,15 @@ public class StateManager {
         local.setSpectator(auth.isSpectator());
         local.setLastPingTime(auth.getLastPingTime());
         local.setReturningToWall(auth.isReturningToWall());
+        // 预留：同步扩展字段
+        local.setEffects(auth.getEffects());
+        local.setSkills(auth.getSkills());
+        local.setActivePowerUp(auth.getActivePowerUp());
+        local.setPowerUpTimer(auth.getPowerUpTimer());
+        local.setCoinsCollected(auth.getCoinsCollected());
+        local.setComboCount(auth.getComboCount());
     }
 
-    /** 完全复制玩家属性 */
     private void copyPlayer(Player target, Player source) {
         target.setX(source.getX());
         target.setY(source.getY());
@@ -171,12 +165,19 @@ public class StateManager {
         target.setSpectator(source.isSpectator());
         target.setLastPingTime(source.getLastPingTime());
         target.setReturningToWall(source.isReturningToWall());
+        // 预留：同步扩展字段
+        target.setEffects(source.getEffects());
+        target.setSkills(source.getSkills());
+        target.setActivePowerUp(source.getActivePowerUp());
+        target.setPowerUpTimer(source.getPowerUpTimer());
+        target.setCoinsCollected(source.getCoinsCollected());
+        target.setComboCount(source.getComboCount());
     }
 
-    /** 深拷贝玩家 */
     private Player clonePlayer(Player p) {
         Player c = new Player(p.getId(), p.getName());
-        c.setColor(p.getColor());
+        c.setFillColor(p.getFillColor());
+        c.setStrokeColor(p.getStrokeColor());
         c.setX(p.getX()); c.setY(p.getY());
         c.setSide(p.getSide());
         c.setJumping(p.isJumping());
@@ -190,6 +191,23 @@ public class StateManager {
         c.setJoinOffsetY(p.getJoinOffsetY());
         c.setTimeBonusScore(p.getTimeBonusScore());
         c.setDisconnected(p.isDisconnected());
+        c.setInvincible(p.isInvincible());
+        c.setInvincibleTimer(p.getInvincibleTimer());
+        c.setRotationAngle(p.getRotationAngle());
+        c.setKnockedBack(p.isKnockedBack());
+        c.setKnockbackTimer(p.getKnockbackTimer());
+        c.setTargetRotation(p.getTargetRotation());
+        c.setHighScore(p.getHighScore());
+        c.setSpectator(p.isSpectator());
+        c.setLastPingTime(p.getLastPingTime());
+        c.setReturningToWall(p.isReturningToWall());
+        // 预留：复制扩展字段
+        c.setEffects(p.getEffects());
+        c.setSkills(p.getSkills());
+        c.setActivePowerUp(p.getActivePowerUp());
+        c.setPowerUpTimer(p.getPowerUpTimer());
+        c.setCoinsCollected(p.getCoinsCollected());
+        c.setComboCount(p.getComboCount());
         return c;
     }
 

@@ -3,10 +3,9 @@ package com.wallrunner.server.dto;
 import java.util.Map;
 
 /**
- * 【模块】server / dto
- * 【代号】X
- * 【职责】客户端与服务端之间的统一 JSON 消息契约。
- * 【原则】纯 POJO，无业务逻辑，用于 Jackson 序列化。
+ * 客户端与服务端之间的统一 JSON 消息契约。
+ *
+ * 原则：纯 POJO，无业务逻辑，用于 Jackson 序列化。
  */
 public class NetworkMessage {
     public enum Type {

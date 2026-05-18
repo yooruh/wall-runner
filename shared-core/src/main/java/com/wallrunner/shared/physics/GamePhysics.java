@@ -1,38 +1,44 @@
 package com.wallrunner.shared.physics;
 
+import com.wallrunner.shared.constants.GameConstants;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Obstacle;
 import com.wallrunner.shared.entity.Player;
 
 import java.util.*;
 
-import com.wallrunner.shared.constants.GameConstants;
 import static com.wallrunner.shared.constants.GameConstants.*;
 
 /**
- * 【模块】shared-core / physics
- * 【代号】Y
- * 【职责】游戏核心物理引擎。
- * 【重构】2026-05-08:
- *       1. 空格=跳跃，ESC=暂停。
- *       2. 彻底移除 front 角色依赖：
- *          - 死亡判断用玩家自身 cameraY。
- *          - 障碍物回收等到最后一名玩家经过。
- *       3. 每个玩家独立摄像机（橡皮筋系统）：
- *          - 正常：cameraTargetY 绑定玩家 Y，cameraY 平滑跟随。
- *          - 被阻挡：cameraTargetY 解绑并持续上移，cameraY 平滑跟随。
- *          - 解除阻挡：cameraTargetY 瞬间绑定回玩家，cameraY 橡皮筋归位。
- *       4. 显示摄像机 state.cameraY 仅用于渲染与障碍物生成，不参与生死判定。
+ * 游戏核心物理引擎。
+ *
+ * 职责：
+ * - 处理玩家移动、碰撞、死亡判定。
+ * - 管理障碍物生成与回收。
+ * - 每个玩家拥有独立摄像机（橡皮筋系统）。
+ * - 支持击退、无敌、旁观等状态。
+ *
+ * 扩展预留：
+ * - 可收集物碰撞检测（已预留方法骨架）。
+ * - 难度系统（随高度自动提升障碍物速度与密度）。
+ * - 技能系统（冲刺、二段跳等输入处理预留）。
  */
 public class GamePhysics {
     private GamePhysics() {}
 
     private static final Random RANDOM = new Random();
 
+    /* ============================================================
+       状态初始化
+       ============================================================ */
+
     public static void initState(GameState state) {
         state.getObstacles().clear();
         state.setFrames(0);
         state.setPhase("menu");
+        state.setDifficultyLevel(1);
+        state.setDifficultyAccumulator(0.0);
+
         int i = 0;
         double initCameraY = 300 - CANVAS_HEIGHT * CAMERA_OFFSET_RATIO;
         for (Player p : state.getPlayers().values()) {
@@ -50,6 +56,17 @@ public class GamePhysics {
             p.setCameraTargetY(initCameraY);
             p.setJoinOffsetY(300);
             p.setTimeBonusScore(0);
+            p.setSpectator(false);
+            p.setKnockedBack(false);
+            p.setInvincible(false);
+            p.setRotationAngle(0);
+            p.setReturningToWall(false);
+            p.setCoinsCollected(0);
+            p.setComboCount(0);
+            p.setActivePowerUp("");
+            p.setPowerUpTimer(0);
+            p.setEffects(new ArrayList<>());
+            // 不重置最高分，保留历史最高分
             i++;
         }
         state.setCameraY(initCameraY);
@@ -59,6 +76,10 @@ public class GamePhysics {
         if (state.getTimeBonusInterval() <= 0) state.setTimeBonusInterval(5.0);
         if (state.getTimeBonusPoints() <= 0) state.setTimeBonusPoints(10);
     }
+
+    /* ============================================================
+       主更新循环
+       ============================================================ */
 
     public static void update(GameState state) {
         if (!"playing".equals(state.getPhase())) return;
@@ -70,73 +91,16 @@ public class GamePhysics {
             return;
         }
 
-        // 1. 障碍物移动与回收（基于最后一名玩家的摄像机）
+        // 1. 障碍物移动与回收
         updateObstacles(state, activePlayers);
 
-        // 【修复】处理击退+旋转+闪烁状态
+        // 2. 处理击退、无敌状态
         for (Player p : activePlayers) {
-            // 击退阶段：被弹出墙壁 → 自由飞行下落 → 缓慢回归墙壁
-            if (p.isKnockedBack()) {
-                p.setKnockbackTimer(p.getKnockbackTimer() - 0.016);
-                // 击退阶段物理：更大重力快速下落
-                p.setVy(p.getVy() + GameConstants.KNOCKBACK_GRAVITY);
-                p.setY(p.getY() + p.getVy());
-
-                // 【修复】分阶段处理：
-                // 前 1.0 秒：自由飞行，只受重力，不回归墙壁
-                // 后 0.5 秒：开始缓慢回归墙壁
-                if (p.getKnockbackTimer() <= 0.5) {
-                    p.setReturningToWall(true);
-                }
-
-                if (p.isReturningToWall()) {
-                    boolean onLeft = "left".equals(p.getSide());
-                    double targetX = onLeft ? WALL_WIDTH + 5 : CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5;
-                    double dx = targetX - p.getX();
-                    // 【修复】降低回归速度，使用更小的步长
-                    if (Math.abs(dx) > 2.0) {
-                        p.setX(p.getX() + Math.signum(dx) * Math.min(Math.abs(dx) * 0.05, 1.0));
-                    } else {
-                        p.setX(targetX); // 吸附到墙壁
-                    }
-                }
-
-                // 旋转动画：缓慢向目标角度倾斜
-                double currentRot = p.getRotationAngle();
-                double targetRot = p.getTargetRotation();
-                double diff = targetRot - currentRot;
-                if (Math.abs(diff) > 0.5) {
-                    p.setRotationAngle(currentRot + Math.signum(diff) * GameConstants.KNOCKBACK_ROTATION_SPEED);
-                }
-                // 击退结束时缓慢恢复角度
-                if (p.getKnockbackTimer() <= 0.3 && Math.abs(p.getRotationAngle()) > 0.5) {
-                    p.setRotationAngle(p.getRotationAngle() * 0.9);
-                }
-
-                // 检查是否回到墙壁（击退结束条件之一）
-                boolean backToWall = ("left".equals(p.getSide()) && p.getX() <= WALL_WIDTH + 5)
-                        || ("right".equals(p.getSide()) && p.getX() >= CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5);
-                if (backToWall || p.getKnockbackTimer() <= 0) {
-                    // 击退结束：恢复正常状态
-                    p.setKnockedBack(false);
-                    p.setReturningToWall(false);
-                    p.setKnockbackTimer(0);
-                    p.setRotationAngle(0);  // 恢复正常角度
-                    p.setTargetRotation(0);
-                }
-            }
-
-            // 闪烁倒计时（独立于击退）
-            if (p.isInvincible()) {
-                p.setInvincibleTimer(p.getInvincibleTimer() - 0.016);
-                if (p.getInvincibleTimer() <= 0) {
-                    p.setInvincible(false);
-                    p.setInvincibleTimer(0);
-                }
-            }
+            processKnockback(p);
+            processInvincibility(p);
         }
 
-        // 2. 玩家移动与碰撞
+        // 3. 玩家移动与碰撞
         Map<String, Boolean> blockedMap = new HashMap<>();
         List<Player> collidable = new ArrayList<>();
         for (Player player : activePlayers) {
@@ -145,49 +109,88 @@ public class GamePhysics {
                 blockedMap.put(player.getId(), blocked);
                 collidable.add(player);
             } else {
+                // 【修复】暂停玩家位置固定，不移动，不参与碰撞
                 blockedMap.put(player.getId(), false);
             }
         }
 
-        // 3. 玩家间碰撞（暂停/闪烁玩家不参与碰撞）
+        // 4. 玩家间碰撞
         for (int i = 0; i < collidable.size(); i++) {
             for (int j = i + 1; j < collidable.size(); j++) {
                 Player a = collidable.get(i);
                 Player b = collidable.get(j);
+                // 【修复】暂停玩家无碰撞效果
                 if (a.isPaused() || b.isPaused()) continue;
-                if (a.isInvincible() || b.isInvincible()) continue; // 【修复】闪烁状态免碰撞
+                if (a.isInvincible() || b.isInvincible()) continue;
                 if (checkPlayerCollision(a, b)) {
                     resolvePlayerCollision(a, b);
                 }
             }
         }
 
-        // 4. 每个玩家独立摄像机（橡皮筋系统）
+        // 5. 每个玩家独立摄像机
         updatePlayerCameras(activePlayers, blockedMap);
 
-        // 5. 显示摄像机（仅渲染/生成用，跟随最领先玩家）
+        // 6. 显示摄像机（仅渲染/生成用）
         updateDisplayCamera(state, activePlayers);
 
-        // 6. 同步 blocked 标记
+        // 7. 同步 blocked 标记
         for (Player p : activePlayers) {
             p.setBlocked(blockedMap.getOrDefault(p.getId(), false));
         }
 
-        // 7. 死亡判断（各自独立摄像机）
+        // 8. 死亡判断
         checkDeathLine(state);
 
-        // 8. 检查全灭
+        // 9. 检查全灭
         checkAllDead(state);
 
-        // 9. 时间奖励
+        // 10. 时间奖励
         applyTimeBonus(state, activePlayers);
 
-        // 10. 重新计算每个玩家的总分数（高度分 + 时间奖励分）
+        // 11. 重新计分
         recalculateScores(activePlayers);
 
-        // 11. 生成障碍物（基于显示摄像机）
+        // 12. 生成障碍物
         checkSpawn(state);
+
+        // 13. 难度递增（预留扩展）
+        updateDifficulty(state, activePlayers);
+
+        // 14. 可收集物（预留扩展 —— 当前仅做占位）
+        // updateCollectibles(state, activePlayers);
     }
+
+    /* ============================================================
+       难度系统（预留扩展）
+       ============================================================ */
+
+    private static void updateDifficulty(GameState state, List<Player> activePlayers) {
+        // 难度随最领先玩家的高度递增
+        double leadY = activePlayers.stream()
+                .mapToDouble(Player::getY)
+                .min()
+                .orElse(0);
+        double heightProgress = Math.max(0, 300 - leadY); // 从起点向上爬的高度
+        double nextThreshold = state.getDifficultyLevel() * 500.0; // 每500像素升一级
+        if (heightProgress > nextThreshold && state.getDifficultyLevel() < DIFFICULTY_MAX_LEVEL) {
+            state.setDifficultyLevel(state.getDifficultyLevel() + 1);
+        }
+    }
+
+    /* ============================================================
+       可收集物系统（预留扩展 —— 方法骨架）
+       ============================================================ */
+
+    // 预留：生成可收集物
+    // private static void spawnCollectibles(GameState state, double cameraY) { }
+
+    // 预留：更新可收集物位置与碰撞
+    // private static void updateCollectibles(GameState state, List<Player> activePlayers) { }
+
+    /* ============================================================
+       时间奖励
+       ============================================================ */
 
     private static void applyTimeBonus(GameState state, List<Player> activePlayers) {
         double interval = state.getTimeBonusInterval();
@@ -196,6 +199,7 @@ public class GamePhysics {
         if (state.getTimeBonusAccumulator() >= interval) {
             int points = state.getTimeBonusPoints();
             for (Player p : activePlayers) {
+                // 【修复】暂停玩家不得分
                 if (!p.isPaused()) {
                     p.setTimeBonusScore(p.getTimeBonusScore() + points);
                 }
@@ -207,18 +211,20 @@ public class GamePhysics {
     private static void recalculateScores(List<Player> activePlayers) {
         for (Player p : activePlayers) {
             int heightScore = (int) ((p.getJoinOffsetY() - p.getY()) / 10.0);
-            p.setScore(Math.max(0, heightScore + p.getTimeBonusScore()));
+            int total = Math.max(0, heightScore + p.getTimeBonusScore() + p.getCoinsCollected());
+            p.setScore(total);
         }
     }
 
-    /**
-     * 初始化中途加入的玩家：位置与最末端玩家一致，joinOffsetY 设为该位置。
-     */
+    /* ============================================================
+       中途加入玩家初始化
+       ============================================================ */
+
     public static void initJoiningPlayer(GameState state, Player player) {
         List<Player> activePlayers = getActivePlayers(state);
         if (activePlayers.isEmpty()) return;
         Player last = activePlayers.stream()
-                .max(java.util.Comparator.comparingDouble(Player::getY))
+                .max(Comparator.comparingDouble(Player::getY))
                 .orElse(null);
         if (last == null) return;
 
@@ -236,19 +242,15 @@ public class GamePhysics {
         player.setBlocked(false);
         player.setCameraY(last.getCameraY());
         player.setCameraTargetY(last.getCameraTargetY());
+        player.setSpectator(false);
+        player.setCoinsCollected(0);
+        player.setComboCount(0);
     }
 
-    private static List<Player> getActivePlayers(GameState state) {
-        List<Player> active = new ArrayList<>();
-        for (Player p : state.getPlayers().values()) {
-            if (p.isActive()) active.add(p);
-        }
-        return active;
-    }
+    /* ============================================================
+       障碍物管理
+       ============================================================ */
 
-    /**
-     * 障碍物回收：必须等到最后一名玩家（cameraY 最大 = 最靠下）经过后才回收。
-     */
     private static void updateObstacles(GameState state, List<Player> activePlayers) {
         double lastCamY = activePlayers.stream()
                 .mapToDouble(Player::getCameraY)
@@ -266,7 +268,8 @@ public class GamePhysics {
 
     private static void checkSpawn(GameState state) {
         double displayCamY = state.getCameraY();
-        if (displayCamY <= state.getNextSpawnCameraY()) {
+        double dist = state.getNextSpawnCameraY() - displayCamY;
+        if (dist > 0) {
             spawnObstacle(state, displayCamY);
             state.setNextSpawnCameraY(displayCamY - random((int) SPAWN_MIN_GAP, (int) SPAWN_MAX_GAP));
         }
@@ -287,6 +290,8 @@ public class GamePhysics {
             Obstacle obs = new Obstacle();
             obs.setX(x); obs.setY(spawnY); obs.setWidth(w); obs.setHeight(h);
             obs.setType("wall_spike"); obs.setSide(side);
+            // 预留：难度影响
+            obs.setDifficulty(state.getDifficultyLevel());
             state.getObstacles().add(obs);
         } else {
             int type = random(0, 2);
@@ -307,12 +312,21 @@ public class GamePhysics {
             Obstacle obs = new Obstacle();
             obs.setX(obsX); obs.setY(spawnY); obs.setWidth(obsWmax); obs.setHeight(obsH);
             obs.setType("floating");
+            // 预留：难度影响
+            obs.setDifficulty(state.getDifficultyLevel());
             state.getObstacles().add(obs);
         }
     }
 
+    /* ============================================================
+       玩家移动与碰撞
+       ============================================================ */
+
     private static boolean updatePlayerMovement(Player player, List<Obstacle> obstacles, List<Player> activePlayers) {
+        // 【修复】暂停玩家不移动
         if (player.isPaused()) return false;
+        // 【修复】击退状态：跳过正常移动和碰撞，由 processKnockback 处理
+        if (player.isKnockedBack()) return false;
         boolean isBlocked = false;
 
         if (!player.isJumping()) {
@@ -327,7 +341,8 @@ public class GamePhysics {
             }
             if (!blocked) {
                 for (Player other : activePlayers) {
-                    if (other == player || other.isPaused()) continue;
+                    // 【修复】暂停玩家不参与碰撞检测，无敌玩家也不参与碰撞检测
+                    if (other == player || other.isPaused() || other.isInvincible()) continue;
                     if (rectIntersect(player.getX(), testY, player.getWidth(), player.getHeight(),
                             other.getX(), other.getY(), other.getWidth(), other.getHeight())) {
                         blocked = true; break;
@@ -337,65 +352,66 @@ public class GamePhysics {
             if (!blocked) {
                 player.setY(testY);
             } else {
-                // 【关键修复】攀爬阶段被障碍物/玩家挡住 = 被阻挡
                 isBlocked = true;
             }
         } else {
-            // 跳跃阶段：向对面墙壁移动
+            // 跳跃阶段
             if ("left".equals(player.getSide())) player.setX(player.getX() + JUMP_SPEED);
             else player.setX(player.getX() - JUMP_SPEED);
             player.setVy(player.getVy() + GRAVITY);
             player.setY(player.getY() + player.getVy());
         }
 
-        // 障碍物碰撞
-        for (Obstacle obs : obstacles) {
-            if (!rectIntersect(player.getX(), player.getY(), player.getWidth(), player.getHeight(),
-                    obs.getX(), obs.getY(), obs.getWidth(), obs.getHeight())) continue;
+        // 障碍物碰撞（无敌状态跳过）
+        if (!player.isInvincible()) {
+            for (Obstacle obs : obstacles) {
+                if (!rectIntersect(player.getX(), player.getY(), player.getWidth(), player.getHeight(),
+                        obs.getX(), obs.getY(), obs.getWidth(), obs.getHeight())) continue;
 
-            double overlapTop = Math.max(0, (player.getY() + player.getHeight()) - obs.getY());
-            double overlapBottom = Math.max(0, (obs.getY() + obs.getHeight()) - player.getY());
-            double overlapLeft = Math.max(0, (player.getX() + player.getWidth()) - obs.getX());
-            double overlapRight = Math.max(0, (obs.getX() + obs.getWidth()) - player.getX());
-            double minOverlap = Math.min(Math.min(overlapTop, overlapBottom), Math.min(overlapLeft, overlapRight));
+                double overlapTop = Math.max(0, (player.getY() + player.getHeight()) - obs.getY());
+                double overlapBottom = Math.max(0, (obs.getY() + obs.getHeight()) - player.getY());
+                double overlapLeft = Math.max(0, (player.getX() + player.getWidth()) - obs.getX());
+                double overlapRight = Math.max(0, (obs.getX() + obs.getWidth()) - player.getX());
+                double minOverlap = Math.min(Math.min(overlapTop, overlapBottom), Math.min(overlapLeft, overlapRight));
 
-            if ("wall_spike".equals(obs.getType())) {
-                boolean isFrontal = player.isJumping() && !player.getSide().equals(obs.getSide()) &&
-                        (minOverlap == overlapLeft || minOverlap == overlapRight);
-                if (isFrontal) {
-                    if (minOverlap == overlapLeft) player.setX(obs.getX() - player.getWidth() - 2);
-                    else player.setX(obs.getX() + obs.getWidth() + 2);
-                    player.setSide("left".equals(player.getSide()) ? "right" : "left");
-                    player.setVy(4);
-                    isBlocked = true;
+                if ("wall_spike".equals(obs.getType())) {
+                    boolean isFrontal = player.isJumping() && !player.getSide().equals(obs.getSide()) &&
+                            (minOverlap == overlapLeft || minOverlap == overlapRight);
+                    if (isFrontal) {
+                        if (minOverlap == overlapLeft) player.setX(obs.getX() - player.getWidth() - 2);
+                        else player.setX(obs.getX() + obs.getWidth() + 2);
+                        player.setSide("left".equals(player.getSide()) ? "right" : "left");
+                        player.setVy(4);
+                        isBlocked = true;
+                    } else {
+                        if (minOverlap == overlapBottom) {
+                            player.setY(obs.getY() + obs.getHeight() + 1);
+                            isBlocked = true;
+                        } else if (minOverlap == overlapTop) {
+                            player.setY(obs.getY() - player.getHeight() - 1);
+                        }
+                    }
                 } else {
                     if (minOverlap == overlapBottom) {
                         player.setY(obs.getY() + obs.getHeight() + 1);
+                        if (player.getVy() < 0) player.setVy(0);
                         isBlocked = true;
                     } else if (minOverlap == overlapTop) {
                         player.setY(obs.getY() - player.getHeight() - 1);
+                        if (player.getVy() > 0) player.setVy(0);
+                        isBlocked = true;
+                    } else if (minOverlap == overlapLeft) {
+                        player.setX(obs.getX() - player.getWidth() - 1);
+                        isBlocked = true;
+                    } else if (minOverlap == overlapRight) {
+                        player.setX(obs.getX() + obs.getWidth() + 1);
+                        isBlocked = true;
                     }
-                }
-            } else {
-                if (minOverlap == overlapBottom) {
-                    player.setY(obs.getY() + obs.getHeight() + 1);
-                    if (player.getVy() < 0) player.setVy(0);
-                    isBlocked = true;
-                } else if (minOverlap == overlapTop) {
-                    player.setY(obs.getY() - player.getHeight() - 1);
-                    if (player.getVy() > 0) player.setVy(0);
-                    isBlocked = true;
-                } else if (minOverlap == overlapLeft) {
-                    player.setX(obs.getX() - player.getWidth() - 1);
-                    isBlocked = true;
-                } else if (minOverlap == overlapRight) {
-                    player.setX(obs.getX() + obs.getWidth() + 1);
-                    isBlocked = true;
                 }
             }
         }
 
-        // 墙壁碰撞（跳跃到达对面）
+        // 墙壁碰撞
         if (player.isJumping()) {
             if ("left".equals(player.getSide()) && player.getX() >= CANVAS_WIDTH - WALL_WIDTH - player.getWidth()) {
                 player.setX(CANVAS_WIDTH - WALL_WIDTH - player.getWidth());
@@ -412,10 +428,79 @@ public class GamePhysics {
         return isBlocked;
     }
 
-    /**
-     * 显示摄像机：仅用于渲染与障碍物生成，跟随最领先玩家（最小 cameraY）。
-     * 绝不参与任何玩家生死判定。
-     */
+    /* ============================================================
+       击退与无敌状态处理
+       ============================================================ */
+
+    private static void processKnockback(Player p) {
+        if (!p.isKnockedBack()) return;
+        p.setKnockbackTimer(p.getKnockbackTimer() - 0.016);
+
+        // 阶段1: 弹开墙壁后自由下落（前 KNOCKBACK_RETURN_DELAY 秒）
+        if (p.getKnockbackTimer() > KNOCKBACK_RETURN_DELAY) {
+            p.setVy(p.getVy() + KNOCKBACK_GRAVITY);
+            p.setY(p.getY() + p.getVy());
+            p.setReturningToWall(false);
+        }
+        // 阶段2: 开始缓慢回归墙壁
+        else if (p.getKnockbackTimer() > 0) {
+            p.setReturningToWall(true);
+            // 继续重力下落
+            p.setVy(p.getVy() + KNOCKBACK_GRAVITY);
+            p.setY(p.getY() + p.getVy());
+
+            boolean onLeft = "left".equals(p.getSide());
+            double targetX = onLeft ? WALL_WIDTH + 5 : CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5;
+            double dx = targetX - p.getX();
+            double returnSpeed = Math.min(Math.abs(dx) * 0.08, KNOCKBACK_RETURN_SPEED);
+            if (Math.abs(dx) > 2.0) {
+                p.setX(p.getX() + Math.signum(dx) * returnSpeed);
+            } else {
+                p.setX(targetX);
+            }
+        }
+
+        // 旋转动画：缓慢倾斜到目标角度
+        double currentRot = p.getRotationAngle();
+        double targetRot = p.getTargetRotation();
+        double diff = targetRot - currentRot;
+        if (Math.abs(diff) > 0.5) {
+            p.setRotationAngle(currentRot + Math.signum(diff) * KNOCKBACK_ROTATION_SPEED);
+        }
+        // 当接近墙壁或击退结束时，缓慢恢复正常角度
+        if (p.isReturningToWall() && Math.abs(p.getRotationAngle()) > 0.5) {
+            p.setRotationAngle(p.getRotationAngle() * 0.92);
+        }
+
+        // 结束条件：回到墙壁或时间到
+        boolean backToWall = ("left".equals(p.getSide()) && p.getX() <= WALL_WIDTH + 8)
+                || ("right".equals(p.getSide()) && p.getX() >= CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 8);
+        if ((backToWall && p.isReturningToWall()) || p.getKnockbackTimer() <= 0) {
+            p.setKnockedBack(false);
+            p.setReturningToWall(false);
+            p.setKnockbackTimer(0);
+            p.setRotationAngle(0);
+            p.setTargetRotation(0);
+            p.setVy(0);
+            // 确保回到墙壁
+            boolean onLeft = "left".equals(p.getSide());
+            p.setX(onLeft ? WALL_WIDTH + 5 : CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5);
+        }
+    }
+
+    private static void processInvincibility(Player p) {
+        if (!p.isInvincible()) return;
+        p.setInvincibleTimer(p.getInvincibleTimer() - 0.016);
+        if (p.getInvincibleTimer() <= 0) {
+            p.setInvincible(false);
+            p.setInvincibleTimer(0);
+        }
+    }
+
+    /* ============================================================
+       摄像机系统
+       ============================================================ */
+
     private static void updateDisplayCamera(GameState state, List<Player> activePlayers) {
         if (activePlayers.isEmpty()) return;
         double leadCamY = activePlayers.stream()
@@ -426,19 +511,14 @@ public class GamePhysics {
         state.setCameraY(state.getCameraY() + (state.getCameraTargetY() - state.getCameraY()) * CAMERA_SMOOTH);
     }
 
-    /**
-     * 每个玩家独立摄像机（橡皮筋系统）。
-     * 被阻挡时解绑并持续上移；解除后瞬间绑定并橡皮筋归位。
-     */
     private static void updatePlayerCameras(List<Player> activePlayers, Map<String, Boolean> blockedMap) {
         for (Player player : activePlayers) {
+            // 【修复】暂停玩家摄像机冻结
             if (player.isPaused()) continue;
             boolean isBlocked = Boolean.TRUE.equals(blockedMap.get(player.getId()));
             if (!isBlocked) {
-                // 未阻挡：目标瞬间绑定玩家位置，cameraY 平滑橡皮筋归位
                 player.setCameraTargetY(player.getY() - CANVAS_HEIGHT * CAMERA_OFFSET_RATIO);
             } else {
-                // 被阻挡：解绑，摄像机无情上移
                 player.setCameraTargetY(player.getCameraTargetY() - CLIMB_SPEED);
             }
             if (player.getCameraY() == 0) {
@@ -448,11 +528,13 @@ public class GamePhysics {
         }
     }
 
-    /**
-     * 死亡判断：严格使用玩家自身的 cameraY。
-     */
+    /* ============================================================
+       死亡判定与重生
+       ============================================================ */
+
     private static void checkDeathLine(GameState state) {
         for (Player player : state.getPlayers().values()) {
+            // 【修复】暂停玩家不死亡
             if (!player.isActive() || player.isPaused()) continue;
             double deathLine = player.getCameraY() + CANVAS_HEIGHT + DEATH_LINE_OFFSET;
             if (player.getY() > deathLine) {
@@ -461,19 +543,41 @@ public class GamePhysics {
         }
     }
 
-    /**
-     * 重生位置使用玩家自己的摄像机。
-     */
     private static void applyDeath(GameState state, Player player) {
         player.setLives(player.getLives() - 1);
         if (player.getLives() <= 0) {
+            // 爱心用完：保存最高分，进入旁观模式
+            if (player.getScore() > player.getHighScore()) {
+                player.setHighScore(player.getScore());
+            }
             player.setActive(false);
+            player.setSpectator(true);
         } else {
+            // 还有生命：只是丢一颗心，重生到后方，分数不重置
+            double fallbackY = 0;
+            for (Player p : state.getPlayers().values()) {
+                if (p.isActive() && p.getY() < fallbackY) {
+                    fallbackY = p.getY();
+                }
+            }
+            double spawnY = fallbackY + 300; // 落后30m = 300像素
             player.setJumping(false);
             player.setVy(0);
             player.setSide("left".equals(player.getSide()) ? "right" : "left");
             player.setX("left".equals(player.getSide()) ? WALL_WIDTH : CANVAS_WIDTH - WALL_WIDTH - player.getWidth());
-            player.setY(player.getCameraY() + CANVAS_HEIGHT * 0.5);
+            player.setY(spawnY);
+            // 分数不重置，保留当前分数
+            player.setJoinOffsetY(spawnY);
+            player.setBlocked(false);
+            player.setPaused(false);
+            player.setKnockedBack(false);
+            player.setInvincible(true);
+            player.setInvincibleTimer(2.0);
+            player.setSpectator(false);
+            // 重置摄像机
+            double spawnCamY = spawnY - CANVAS_HEIGHT * CAMERA_OFFSET_RATIO;
+            player.setCameraY(spawnCamY);
+            player.setCameraTargetY(spawnCamY);
         }
     }
 
@@ -483,6 +587,10 @@ public class GamePhysics {
             state.setPhase("gameover");
         }
     }
+
+    /* ============================================================
+       玩家间碰撞
+       ============================================================ */
 
     private static boolean checkPlayerCollision(Player a, Player b) {
         return rectIntersect(a.getX(), a.getY(), a.getWidth(), a.getHeight(),
@@ -495,23 +603,30 @@ public class GamePhysics {
         double overlapX = (a.getWidth() + b.getWidth()) / 2 - Math.abs(dx);
         double overlapY = (a.getHeight() + b.getHeight()) / 2 - Math.abs(dy);
 
-        // 【修复】跳跃玩家撞击非跳跃玩家时，被撞者进入"击退+旋转+闪烁"状态
         boolean aJumping = a.isJumping();
         boolean bJumping = b.isJumping();
-        if (aJumping && !bJumping) {
-            // A(跳跃) 撞击 B(非跳跃)：B 被击退，A 继续飞行
-            applyKnockback(b, a.getSide());  // B 向 A 来向的反方向击退
-            // A 获得向目标墙的额外水平速度，避免停滞
+        if (aJumping && bJumping) {
+            // 【修复】两个都在跳跃途中的玩家碰撞：互相弹开，类似撞到尖刺效果
+            // 根据相对位置决定弹开方向
+            if (dx > 0) {
+                // a 在 b 右边，a 弹向右边，b 弹向左边
+                applyKnockback(a, "left");
+                applyKnockback(b, "right");
+            } else {
+                // a 在 b 左边，a 弹向左边，b 弹向右边
+                applyKnockback(a, "right");
+                applyKnockback(b, "left");
+            }
+        } else if (aJumping && !bJumping) {
+            applyKnockback(b, a.getSide());
             double pushX = "left".equals(a.getSide()) ? JUMP_SPEED * 0.8 : -JUMP_SPEED * 0.8;
             a.setX(a.getX() + pushX);
         } else if (bJumping && !aJumping) {
-            // B(跳跃) 撞击 A(非跳跃)：A 被击退，B 继续飞行
             applyKnockback(a, b.getSide());
             double pushX = "left".equals(b.getSide()) ? JUMP_SPEED * 0.8 : -JUMP_SPEED * 0.8;
             b.setX(b.getX() + pushX);
         }
 
-        // 位置分离：防止玩家重叠
         if (overlapX < overlapY) {
             double shift = overlapX / 2;
             a.setX(a.getX() + (dx > 0 ? shift : -shift));
@@ -523,33 +638,33 @@ public class GamePhysics {
         }
     }
 
-    /**
-     * 应用击退效果：被弹出墙壁一小段距离，进入闪烁无敌，开始旋转动画。
-     * victim: 被撞者, attackerSide: 撞击者所在侧（决定击退方向）
-     */
     private static void applyKnockback(Player victim, String attackerSide) {
-        // 1. 进入闪烁无敌状态
         victim.setInvincible(true);
-        victim.setInvincibleTimer(2.5);  // 2.5秒无敌（含击退+恢复时间）
-
-        // 2. 击退状态：被弹出墙壁
+        victim.setInvincibleTimer(2.5);
         victim.setKnockedBack(true);
-        victim.setReturningToWall(false);  // 【修复】初始不回归，先自由飞行
-        victim.setKnockbackTimer(1.5);     // 击退阶段持续1.5秒
+        victim.setReturningToWall(false);
+        victim.setKnockbackTimer(KNOCKBACK_DURATION);
 
-        // 3. 物理弹出：向墙壁外侧弹出
-        boolean pushToLeft = "right".equals(attackerSide);  // 若撞击者在右侧，受害者向左弹出
+        // 被撞开：向攻击者反方向弹出到墙壁外
+        boolean pushToLeft = "right".equals(attackerSide);
         double pushDir = pushToLeft ? -1.0 : 1.0;
-        victim.setX(victim.getX() + pushDir * GameConstants.KNOCKBACK_PUSH_X);
-        victim.setVy(GameConstants.KNOCKBACK_VY);  // 向上轻弹
+        // 确保弹出到墙壁外一定距离
+        double wallEdge = "left".equals(victim.getSide()) ? WALL_WIDTH : CANVAS_WIDTH - WALL_WIDTH - victim.getWidth();
+        double targetX = wallEdge + pushDir * KNOCKBACK_PUSH_X;
+        // 限制在画布范围内
+        targetX = Math.max(5, Math.min(targetX, CANVAS_WIDTH - victim.getWidth() - 5));
+        victim.setX(targetX);
+        victim.setVy(KNOCKBACK_VY);
 
-        // 4. 旋转动画：向弹出方向倾斜
-        victim.setTargetRotation(pushToLeft ? -GameConstants.KNOCKBACK_ROTATION : GameConstants.KNOCKBACK_ROTATION);
-        victim.setRotationAngle(0);  // 从0开始旋转
-
-        // 5. 结束跳跃状态（如果正在跳跃）
+        // 设置旋转目标：向被撞方向倾斜
+        victim.setTargetRotation(pushToLeft ? -KNOCKBACK_ROTATION : KNOCKBACK_ROTATION);
+        victim.setRotationAngle(0);
         victim.setJumping(false);
     }
+
+    /* ============================================================
+       工具方法
+       ============================================================ */
 
     private static boolean rectIntersect(double x1, double y1, double w1, double h1,
                                          double x2, double y2, double w2, double h2) {
@@ -560,12 +675,28 @@ public class GamePhysics {
         return RANDOM.nextInt(max - min + 1) + min;
     }
 
+    private static List<Player> getActivePlayers(GameState state) {
+        List<Player> active = new ArrayList<>();
+        for (Player p : state.getPlayers().values()) {
+            if (p.isActive()) active.add(p);
+        }
+        return active;
+    }
+
+    /* ============================================================
+       公共接口
+       ============================================================ */
+
     public static void handleInput(Player player, String inputType) {
+        // 【修复】暂停玩家不接受输入
         if (!player.isActive() || player.isPaused()) return;
         if ("jump".equals(inputType) && !player.isJumping()) {
             player.setVy(JUMP_VY);
             player.setJumping(true);
         }
+        // 预留：技能输入处理
+        // if ("skill_dash".equals(inputType)) { ... }
+        // if ("skill_double_jump".equals(inputType)) { ... }
     }
 
     public static void startGame(GameState state) {

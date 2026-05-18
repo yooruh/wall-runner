@@ -12,19 +12,12 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 
 /**
- * 【模块】client / controller
- * 【代号】Z
- * 【职责】主菜单交互逻辑。与原始网页版 menu.js 严格对齐。
- * 【特性】保存玩家名字到 Preferences，加载已保存名字，按钮禁用状态。
- * 【原则】仅处理用户事件与服务调用，不操作样式。
- * 【修复】2026-05-08:
- *       1. 进入公共服务器前检查连接是否成功，失败时阻止切场景并恢复按钮。
- *       2. 创建/加入房间前同样检查连接状态。
- *       3. 统一使用 ClientApplication 的窗口尺寸切换，避免窗口忽大忽小。
- *       4. 支持自定义房间码（大写字母+数字），创建后显示并可复制。
- * 【修复】2026-05-11:
- *       1. 所有模式切换必须先 setMode 再 switchScene，确保 GameController.initialize()
- *          读取到正确的 currentMode，避免旧模式残留导致状态初始化异常。
+ * 主菜单交互逻辑。
+ *
+ * 职责：
+ * - 处理用户事件与服务调用。
+ * - 保存玩家名字到 Preferences。
+ * - 所有模式切换必须先 setMode 再 switchScene，确保 GameController 读取正确模式。
  */
 public class MenuController {
 
@@ -84,7 +77,6 @@ public class MenuController {
     private void onSinglePlayer() {
         saveName();
         setButtonsDisabled(true);
-        // 【修复】先 setMode，再 switchScene，确保 GameController 读取正确模式
         GameController.setMode(GameController.Mode.SINGLE);
         ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
@@ -93,16 +85,20 @@ public class MenuController {
     private void onDedicated() {
         saveName();
         setButtonsDisabled(true);
-        if (!wsService.isConnected()) {
-            boolean ok = wsService.connect("ws://localhost:8080/ws/game");
-            if (!ok) {
-                showAlert("无法连接到主服务器，请检查服务器是否运行。");
+        wsService.setOnConnectionError(errMsg -> {
+            Platform.runLater(() -> {
+                showAlert(errMsg);
                 restoreButtons();
+            });
+        });
+        if (!wsService.isConnected()) {
+            boolean ok = wsService.connect(wsService.getServerUrl());
+            if (!ok) {
+                // 错误已由回调处理
                 return;
             }
         }
         wsService.joinDedicated(getName());
-        // 【修复】先 setMode，再 switchScene
         GameController.setMode(GameController.Mode.DEDICATED);
         ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
@@ -111,22 +107,24 @@ public class MenuController {
     private void onCreateRoom() {
         saveName();
         String customId = customRoomField != null ? customRoomField.getText().trim().toUpperCase() : "";
-        // 验证自定义房间码格式：仅大写字母和数字
         if (!customId.isEmpty() && !customId.matches("[A-Z0-9]+")) {
             showAlert("房间码只能包含大写字母和数字");
             return;
         }
         setButtonsDisabled(true);
-        if (!wsService.isConnected()) {
-            boolean ok = wsService.connect("ws://localhost:8080/ws/game");
-            if (!ok) {
-                showAlert("无法连接到服务器，请检查网络或服务器状态。");
+        wsService.setOnConnectionError(errMsg -> {
+            Platform.runLater(() -> {
+                showAlert(errMsg);
                 restoreButtons();
+            });
+        });
+        if (!wsService.isConnected()) {
+            boolean ok = wsService.connect(wsService.getServerUrl());
+            if (!ok) {
                 return;
             }
         }
         wsService.createRoom(getName(), customId.isEmpty() ? null : customId);
-        // 【修复】先 setMode，再 switchScene
         GameController.setMode(GameController.Mode.RELAY_HOST);
         ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }
@@ -144,16 +142,19 @@ public class MenuController {
         }
         saveName();
         setButtonsDisabled(true);
-        if (!wsService.isConnected()) {
-            boolean ok = wsService.connect("ws://localhost:8080/ws/game");
-            if (!ok) {
-                showAlert("无法连接到服务器，请检查网络或服务器状态。");
+        wsService.setOnConnectionError(errMsg -> {
+            Platform.runLater(() -> {
+                showAlert(errMsg);
                 restoreButtons();
+            });
+        });
+        if (!wsService.isConnected()) {
+            boolean ok = wsService.connect(wsService.getServerUrl());
+            if (!ok) {
                 return;
             }
         }
         wsService.joinRoom(roomId, getName());
-        // 【修复】先 setMode，再 switchScene
         GameController.setMode(GameController.Mode.RELAY_GUEST);
         ClientApplication.switchScene("/com/wallrunner/client/view/game.fxml");
     }

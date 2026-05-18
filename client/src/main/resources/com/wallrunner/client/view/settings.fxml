@@ -1,72 +1,123 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
-<?import javafx.geometry.Insets?>
+<?import javafx.geometry.*?>
 
-<VBox fx:id="settingsRoot" styleClass="settings-overlay" xmlns:fx="http://javafx.com/fxml/1"
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.wallrunner.client.controller.SettingsController"
-      alignment="CENTER" spacing="0">
+      alignment="CENTER"
+      spacing="0"
+      styleClass="settings-box"
+      prefWidth="380" prefHeight="680">
 
-    <VBox styleClass="settings-box">
-        <padding><Insets top="25" right="30" bottom="25" left="30"/></padding>
+    <padding>
+        <Insets top="20" right="0" bottom="20" left="0"/>
+    </padding>
 
-        <Label text="⚙️ 游戏设置" styleClass="settings-title"/>
+    <Label text="游戏设置" styleClass="settings-title">
+        <VBox.margin><Insets bottom="12"/></VBox.margin>
+    </Label>
 
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="14"/></padding>
-            <Label text="玩家名称" styleClass="settings-label"/>
-            <TextField fx:id="nameField" styleClass="settings-input"/>
-        </HBox>
+    <!-- 滚动区域 -->
+    <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                styleClass="settings-scroll-pane" VBox.vgrow="ALWAYS">
+        <VBox spacing="16" alignment="CENTER">
+            <padding><Insets top="8" right="24" bottom="8" left="24"/></padding>
 
-        <VBox spacing="6">
-            <padding><Insets top="14"/></padding>
-            <HBox alignment="CENTER_LEFT" spacing="12">
-                <Label text="跳跃按键" styleClass="settings-label"/>
-                <Button fx:id="btnAddJumpKey" text="＋ 按下绑定" styleClass="menu-btn, secondary"/>
-            </HBox>
-            <Label fx:id="jumpKeyHint" text="点击上方按钮后，按下想绑定的按键" styleClass="hint-label"/>
-            <VBox fx:id="jumpKeysContainer" spacing="4">
-                <padding><Insets left="92"/></padding>
+            <!-- ===== 玩家信息 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎玩家信息" styleClass="settings-section-title"/>
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <Label text="玩家名称" styleClass="settings-label"/>
+                    <TextField fx:id="nameField" promptText="输入你的名字" styleClass="name-input"/>
+                </VBox>
             </VBox>
+
+            <!-- ===== 网络设置 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎网络设置" styleClass="settings-section-title"/>
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <Label text="服务器地址" styleClass="settings-label"/>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <TextField fx:id="serverAddressField" promptText="localhost" styleClass="settings-input" HBox.hgrow="ALWAYS"/>
+                        <Label text=":" styleClass="settings-unit"/>
+                        <TextField fx:id="serverPortField" promptText="8080" styleClass="settings-input, number" prefWidth="60"/>
+                    </HBox>
+                    <Label text="跨设备联机时填写服务器 IP（如 192.168.137.1）" styleClass="settings-hint"/>
+                </VBox>
+            </VBox>
+
+            <!-- ===== 游戏玩法 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎游戏玩法" styleClass="settings-section-title"/>
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <Label text="时间奖励间隔 (秒)" styleClass="settings-label"/>
+                    <TextField fx:id="timeIntervalField" promptText="5.0" styleClass="settings-input, number"/>
+                    <Label text="时间奖励分数" styleClass="settings-label"/>
+                    <TextField fx:id="timePointsField" promptText="10" styleClass="settings-input, number"/>
+                </VBox>
+            </VBox>
+
+            <!-- ===== 按键绑定 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎按键绑定" styleClass="settings-section-title"/>
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <Label text="跳跃键绑定" styleClass="settings-label"/>
+                    <VBox fx:id="jumpKeysContainer" spacing="4"/>
+                    <Button fx:id="btnAddJumpKey" text="+ 添加按键" styleClass="settings-add-button"/>
+                    <Label fx:id="jumpKeyHint" text="点击上方按钮后，按下想绑定的按键" styleClass="settings-hint"/>
+                </VBox>
+            </VBox>
+
+            <!-- ===== 显示设置 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎显示设置" styleClass="settings-section-title"/>
+                <VBox spacing="8" alignment="CENTER_LEFT">
+                    <CheckBox fx:id="showFpsCheck" text="显示 FPS" styleClass="settings-check"/>
+                    <CheckBox fx:id="soundCheck" text="音效" styleClass="settings-check"/>
+                    <CheckBox fx:id="predictCheck" text="预测补偿" styleClass="settings-check"/>
+                </VBox>
+            </VBox>
+
+            <!-- ===== 角色颜色 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎角色颜色" styleClass="settings-section-title"/>
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <CheckBox fx:id="autoColorCheck" text="使用默认配色（自动分配不重复颜色）" styleClass="settings-check"/>
+                    <VBox fx:id="customColorBox" spacing="6" alignment="CENTER_LEFT">
+                        <Label text="自定义填充色 (HEX)" styleClass="settings-label"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <TextField fx:id="fillColorField" promptText="#4ecca3" styleClass="settings-input" HBox.hgrow="ALWAYS"/>
+                            <Region fx:id="fillColorPreview" prefWidth="24" prefHeight="24" style="-fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;"/>
+                        </HBox>
+                        <Label text="自定义描边色 (HEX)" styleClass="settings-label"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <TextField fx:id="strokeColorField" promptText="#3db892" styleClass="settings-input" HBox.hgrow="ALWAYS"/>
+                            <Region fx:id="strokeColorPreview" prefWidth="24" prefHeight="24" style="-fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;"/>
+                        </HBox>
+                        <Label text="留空则使用默认配色" styleClass="settings-hint"/>
+                    </VBox>
+                </VBox>
+            </VBox>
+
+            <!-- ===== 外观主题 ===== -->
+            <VBox spacing="4" alignment="CENTER_LEFT" maxWidth="320">
+                <Label text="▎外观主题" styleClass="settings-section-title"/>
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <Label text="主题" styleClass="settings-label"/>
+                    <ComboBox fx:id="themeSelector" promptText="深色" styleClass="settings-combo" maxWidth="320"/>
+                </VBox>
+            </VBox>
+
         </VBox>
+    </ScrollPane>
 
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="14"/></padding>
-            <Label text="奖励间隔" styleClass="settings-label"/>
-            <TextField fx:id="timeIntervalField" text="5.0" styleClass="settings-input, number"/>
-            <Label text="秒" styleClass="settings-unit"/>
-        </HBox>
+    <!-- 底部按钮 -->
+    <HBox spacing="16" alignment="CENTER" maxWidth="320">
+        <VBox.margin><Insets top="16"/></VBox.margin>
+        <Button text="保存" onAction="#onSave" styleClass="menu-btn, resume" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+        <Button text="取消" onAction="#onCancel" styleClass="menu-btn, ghost" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+    </HBox>
 
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="10"/></padding>
-            <Label text="每次加分" styleClass="settings-label"/>
-            <TextField fx:id="timePointsField" text="10" styleClass="settings-input, number"/>
-            <Label text="分" styleClass="settings-unit"/>
-        </HBox>
-
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="10"/></padding>
-            <Label text="显示FPS" styleClass="settings-label"/>
-            <CheckBox fx:id="showFpsCheck" styleClass="settings-check"/>
-        </HBox>
-
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="10"/></padding>
-            <Label text="音效" styleClass="settings-label"/>
-            <CheckBox fx:id="soundCheck" styleClass="settings-check"/>
-        </HBox>
-
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <padding><Insets top="10"/></padding>
-            <Label text="本地预测" styleClass="settings-label"/>
-            <CheckBox fx:id="predictCheck" styleClass="settings-check"/>
-        </HBox>
-
-        <HBox alignment="CENTER" spacing="10">
-            <padding><Insets top="20"/></padding>
-            <Button text="保存" styleClass="menu-btn, resume" onAction="#onSave"/>
-            <Button text="取消" styleClass="menu-btn, secondary" onAction="#onCancel"/>
-        </HBox>
-    </VBox>
 </VBox>

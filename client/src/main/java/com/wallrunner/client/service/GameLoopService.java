@@ -7,11 +7,9 @@ import javafx.util.Duration;
 import java.util.function.Consumer;
 
 /**
- * 【模块】client / service
- * 【代号】Z
- * 【职责】基于 JavaFX Timeline 的游戏主循环，固定 120 FPS 时间步。
- * 【原则】仅做调度器，不触碰游戏状态。
- * 【修复】2026-05-08: 从 60fps 提升到 120fps，画面更流畅。
+ * 基于 JavaFX Timeline 的游戏主循环，固定 120 FPS 时间步。
+ *
+ * 原则：仅做调度器，不触碰游戏状态。
  */
 public class GameLoopService {
 

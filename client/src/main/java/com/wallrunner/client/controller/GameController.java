@@ -8,6 +8,7 @@ import com.wallrunner.client.service.InputService;
 import com.wallrunner.client.service.Renderer;
 import com.wallrunner.client.service.StateManager;
 import com.wallrunner.client.service.WebSocketClientService;
+import com.wallrunner.shared.constants.GameConstants;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
 import com.wallrunner.shared.physics.GamePhysics;
@@ -29,20 +30,14 @@ import java.util.Set;
 import java.util.prefs.Preferences;
 
 /**
- * 【模块】client / controller
- * 【代号】Z
- * 【职责】游戏场景主控制器。
- * 【架构】三层分离：
- *       - 网络层 (WebSocketClientService): 收发消息
- *       - 物理层 (StateManager + LocalPhysicsEngine): 本地状态与物理计算
- *       - 渲染层 (Renderer): Canvas 绘制
- * 【原则】所有模式均运行本地物理，网络状态仅用于校正，确保画面流畅。
- * 【修复】2026-05-10:
- *       1. 所有模式（含Dedicated/RelayGuest）均运行本地物理，解决客机画面卡顿。
- *       2. P2P房主每3帧广播一次权威状态，确保客机同步。
- *       3. 网络状态统一走reconcile，平滑校正避免画面跳变。
- *       4. 消息处理提取为独立方法，消除巨型switch/if-else。
- *       5. 房间号显示统一初始化，房主/客机逻辑清晰分离。
+ * 游戏场景主控制器。
+ *
+ * 架构分层：
+ * - 网络层 (WebSocketClientService): 收发消息
+ * - 物理层 (StateManager + LocalPhysicsEngine): 本地状态与物理计算
+ * - 渲染层 (Renderer): Canvas 绘制
+ *
+ * 核心原则：所有模式均运行本地物理，网络状态仅用于校正，确保画面流畅。
  */
 public class GameController {
 
@@ -54,6 +49,10 @@ public class GameController {
     @FXML private Button btnPause;
     @FXML private Button btnSettings;
     @FXML private Button btnHome;
+    @FXML private Button btnResumeGame;
+    @FXML private Button btnRespawn;
+    @FXML private Label pauseTitle;
+    @FXML private Label pauseHint;
     @FXML private Label toolbarInfo;
     @FXML private Label connStatus;
     @FXML private Label roomIdDisplay;
@@ -78,8 +77,11 @@ public class GameController {
     private boolean initialized = false;
     private boolean settingsLoaded = false;
     private String modeStr = "single";
-    // P2P房主每帧广播，无需计数器
-    private String spectatorTargetId = null; // 旁观模式当前跟随的玩家ID
+    private String spectatorTargetId = null;
+
+    // 动态UI元素
+    private javafx.scene.control.Button respawnBtn;
+    private javafx.scene.control.Label deathHintLabel;
 
     // ===== 身份查询 =====
 
@@ -93,10 +95,6 @@ public class GameController {
     private boolean isOffline()  { return currentMode == Mode.SINGLE; }
 
     // ===== 生命周期 =====
-
-    // 【新增】动态UI元素
-    private javafx.scene.control.Button respawnBtn;
-    private javafx.scene.control.Label deathHintLabel;
 
     @FXML
     private void initialize() {
@@ -122,7 +120,6 @@ public class GameController {
 
         sm.setLocalPlayerId(ws.getClientId());
 
-        // 离线或房主：立即初始化本地权威状态
         if (isOffline() || isHost()) {
             sm.initLocalState(ws.getPlayerName());
             GameState s = sm.getState();
@@ -134,34 +131,15 @@ public class GameController {
         initConnStatus();
         initRoomDisplay();
         initLeaderboard();
-
-        // 【新增】初始化死亡覆盖层UI
         initDeathOverlay();
     }
 
-    /** 【新增】初始化死亡覆盖层：重生按钮 + 旁观提示 */
     private void initDeathOverlay() {
         if (gameOverOverlay == null) return;
 
-        respawnBtn = new javafx.scene.control.Button("立即重生");
-        respawnBtn.setStyle("-fx-background-color: #4ecca3; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 8 24;");
-        respawnBtn.setOnAction(e -> onRestart());
-        respawnBtn.setVisible(false);
-        respawnBtn.setManaged(false);
-
-        deathHintLabel = new javafx.scene.control.Label("按跳跃键切换旁观视角");
-        deathHintLabel.setStyle("-fx-text-fill: #aaa; -fx-font-size: 12px;");
-        deathHintLabel.setVisible(false);
-        deathHintLabel.setManaged(false);
-
-        // 插入到 gameOverOverlay 中（在 finalScoreLabel 之后）
-        int insertIdx = gameOverOverlay.getChildren().indexOf(finalScoreLabel) + 1;
-        if (insertIdx > 0 && insertIdx <= gameOverOverlay.getChildren().size()) {
-            gameOverOverlay.getChildren().add(insertIdx, respawnBtn);
-            gameOverOverlay.getChildren().add(insertIdx + 1, deathHintLabel);
-        } else {
-            gameOverOverlay.getChildren().add(respawnBtn);
-            gameOverOverlay.getChildren().add(deathHintLabel);
+        // 使用 FXML 中定义的底部提示组件
+        if (bottomRespawnBtn != null) {
+            bottomRespawnBtn.setOnAction(e -> onRestart());
         }
     }
 
@@ -180,26 +158,23 @@ public class GameController {
     // ===== 每帧主循环 =====
 
     private void onTick(double deltaMs) {
-        if (paused) return;
+        // 【修复】单人模式真正暂停：停止游戏运行
+        if (paused && isOffline()) return;
+
         GameState state = sm.getState();
         if (state == null) return;
 
-        // 【核心修复】所有模式均运行本地物理，确保画面流畅。
-        // 网络状态仅用于校正（见 onState），不阻塞渲染。
         physics.tick(state);
 
-        // P2P房主：每帧广播权威状态（与客户端同频120fps）
         if (isHost()) {
             ws.sendState(state);
         }
 
-        // 渲染必须在JavaFX线程
         Platform.runLater(() -> renderFrame(state));
     }
 
     private void renderFrame(GameState state) {
         Player me = state.getPlayers().get(localId());
-        // 【新增】旁观模式：使用被跟随玩家的摄像机
         double camY;
         if (spectatorTargetId != null) {
             Player target = state.getPlayers().get(spectatorTargetId);
@@ -210,14 +185,12 @@ public class GameController {
         renderer.render(state, modeStr, camY, ws.isShowFps(), localId());
         updateLeaderboard(state);
 
-        // 【新增】检测单个玩家死亡（非全局gameover），显示死亡UI
         if (me != null && !me.isActive() && "playing".equals(state.getPhase())) {
             showDeathUI(state);
         } else if (!"gameover".equals(state.getPhase())) {
             hideDeathUI();
         }
 
-        // 【新增】旁观模式提示
         if (spectatorTargetId != null) {
             Player target = state.getPlayers().get(spectatorTargetId);
             if (target != null) {
@@ -232,8 +205,6 @@ public class GameController {
     // ===== 网络状态校正 =====
 
     private void onState(GameState remote) {
-        // 【核心修复】所有网络模式统一走reconcile，平滑校正本地状态。
-        // 首次reconcile时若本地玩家缺失，StateManager会自动从权威状态复制。
         sm.reconcile(remote);
     }
 
@@ -254,13 +225,11 @@ public class GameController {
             hideOverlays();
         } else if ("playing".equals(phase)) {
             Player me = state.getPlayers().get(localId());
-            // 【新增】死亡后：跳跃键切换旁观视角，或重开
             if (me != null && !me.isActive()) {
+                // 死亡后自动进入旁观模式
                 if (spectatorTargetId == null) {
-                    // 首次进入旁观模式
                     enterSpectatorMode(state);
                 } else {
-                    // 切换到下一位存活玩家
                     switchSpectatorTarget(state);
                 }
                 return;
@@ -273,11 +242,10 @@ public class GameController {
                     ws.sendInput("jump");
                     predictor.predict(state, localId(), "jump");
                     renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide());
-                } else { // RELAY_GUEST
+                } else {
                     ws.sendInput("jump");
                 }
             } else if (me == null && isGuest()) {
-                // 玩家尚未同步，先发送输入确保不丢失
                 ws.sendInput("jump");
             }
         }
@@ -311,12 +279,10 @@ public class GameController {
         String strokeColor = (String) msg.get("strokeColor");
         ws.setMyId(pid);
         sm.setLocalPlayerId(pid);
-        // 保存服务器分配的颜色
         if (fillColor != null && !fillColor.isEmpty()) {
             ws.setFillColor(fillColor);
             ws.setStrokeColor(strokeColor);
         }
-        // 客机不预创建状态，等待权威state通过reconcile同步
         if (isOffline() || isHost()) {
             sm.initLocalState(ws.getPlayerName());
         }
@@ -349,7 +315,6 @@ public class GameController {
             ws.setFillColor(fillColor);
             ws.setStrokeColor(strokeColor);
         }
-        // 客机不预创建状态，等待房主广播权威state
         Platform.runLater(() -> {
             if (roomIdDisplay != null) roomIdDisplay.setText("房间: " + rid);
         });
@@ -368,19 +333,17 @@ public class GameController {
         if (state == null) return;
         if (!state.getPlayers().containsKey(pid)) {
             Player joiner = new Player(pid, name);
-            // 使用服务器分配的颜色（如果有）
             if (fillColor != null && !fillColor.isEmpty()) {
                 joiner.setFillColor(fillColor);
                 joiner.setStrokeColor(strokeColor);
-                joiner.setColor(fillColor);
             } else {
-                joiner.setColor(com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS[
-                        Math.abs(pid.hashCode()) % com.wallrunner.shared.constants.GameConstants.PLAYER_COLORS.length]);
+                int colorIdx = Math.abs(pid.hashCode()) % GameConstants.PLAYER_COLOR_PAIRS.length;
+                joiner.setFillColor(GameConstants.PLAYER_COLOR_PAIRS[colorIdx][0]);
+                joiner.setStrokeColor(GameConstants.PLAYER_COLOR_PAIRS[colorIdx][1]);
             }
             GamePhysics.initJoiningPlayer(state, joiner);
             state.getPlayers().put(pid, joiner);
         }
-        // 房主立即广播权威状态，让新机同步
         ws.sendState(state);
     }
 
@@ -417,7 +380,6 @@ public class GameController {
                     GamePhysics.startGame(state);
                     yield true;
                 } else if ("playing".equals(state.getPhase())) {
-                    // 房主已在游戏中，广播当前状态让中途加入的客机同步
                     yield true;
                 }
                 yield false;
@@ -438,22 +400,56 @@ public class GameController {
         paused = !paused;
         pauseOverlay.setVisible(paused);
         pauseOverlay.setManaged(paused);
-        hint.setText(paused ? "游戏已暂停（按 ESC 恢复）" : "按跳跃键 / 点击屏幕 / 触摸 来跳跃");
 
         GameState state = sm.getState();
         Player me = state != null ? state.getPlayers().get(localId()) : null;
-        if (me != null) me.setPaused(paused);
-        if (isGuest()) ws.sendInput(paused ? "pause" : "resume");
+        boolean isDead = me != null && !me.isActive();
 
-        if (!paused) {
-            loop.start();
-            focusCanvas();
+        // 根据是否死亡调整暂停菜单内容
+        if (isDead) {
+            if (pauseTitle != null) pauseTitle.setText("你已死亡");
+            if (pauseHint != null) pauseHint.setText("按暂停键可以重生或退出");
+            if (btnResumeGame != null) { btnResumeGame.setVisible(false); btnResumeGame.setManaged(false); }
+            if (btnRespawn != null) { btnRespawn.setVisible(true); btnRespawn.setManaged(true); }
+        } else {
+            if (pauseTitle != null) pauseTitle.setText("游戏暂停");
+            if (pauseHint != null) pauseHint.setText("按 ESC 恢复游戏");
+            if (btnResumeGame != null) { btnResumeGame.setVisible(true); btnResumeGame.setManaged(true); }
+            if (btnRespawn != null) { btnRespawn.setVisible(false); btnRespawn.setManaged(false); }
+        }
+
+        hint.setText(paused ? "游戏已暂停（按 ESC 恢复）" : "按跳跃键 / 点击屏幕 / 触摸 来跳跃");
+
+        if (me != null && !isDead) me.setPaused(paused);
+
+        // 联机模式发送暂停/恢复消息（仅非死亡状态）
+        if (!isOffline() && !isDead) {
+            ws.sendInput(paused ? "pause" : "resume");
+        }
+
+        // 【修复】单人模式真正暂停：停止/恢复游戏循环
+        if (isOffline()) {
+            if (paused) {
+                loop.stop();
+            } else {
+                loop.start();
+                focusCanvas();
+            }
+        } else {
+            // 联机模式：暂停时停止本地循环（画面冻结），恢复时继续
+            if (!paused) {
+                loop.start();
+                focusCanvas();
+            }
         }
     }
 
     @FXML private void onOpenSettings() {
+        // 【修复】设置本身有暂停功能：打开设置时暂停游戏
+        if (isPlaying() && !paused) {
+            onTogglePause();
+        }
         input.setSettingsOpen(true);
-        loop.stop();
         if (settingsOverlay != null && !settingsLoaded) {
             try {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/wallrunner/client/view/settings.fxml"));
@@ -465,7 +461,7 @@ public class GameController {
             } catch (Exception e) {
                 e.printStackTrace();
                 input.setSettingsOpen(false);
-                if (!paused) loop.start();
+                // 如果打开设置前是暂停状态，保持暂停
                 return;
             }
         }
@@ -482,60 +478,76 @@ public class GameController {
         }
         input.setSettingsOpen(false);
         reloadKeys();
-        if (!paused) {
-            loop.start();
-            focusCanvas();
+        // 【修复】关闭设置时恢复游戏（如果当前是暂停状态）
+        if (paused && isPlaying()) {
+            onTogglePause(); // 恢复游戏
         }
     }
 
     @FXML private void onReturnToMenu() {
-        loop.stop();
-        ws.disconnect();
-        sm.reset();
-        spectatorTargetId = null;
-        // 【修复】重置静态模式变量，避免返回菜单后旧模式残留影响下次进入
-        currentMode = Mode.SINGLE;
-        ClientApplication.switchScene("/com/wallrunner/client/view/menu.fxml");
+        // 弹出确认框
+        javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("确认返回");
+        confirm.setHeaderText(null);
+        confirm.setContentText("确定要返回主菜单吗？当前游戏进度将丢失。");
+        confirm.getButtonTypes().setAll(
+                javafx.scene.control.ButtonType.YES,
+                javafx.scene.control.ButtonType.NO);
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == javafx.scene.control.ButtonType.YES) {
+                loop.stop();
+                // 发送断开通知给服务器，让服务器正确标记为离线
+                ws.sendDisconnect();
+                sm.reset();
+                spectatorTargetId = null;
+                currentMode = Mode.SINGLE;
+                ClientApplication.switchScene("/com/wallrunner/client/view/menu.fxml");
+            }
+        });
     }
 
     @FXML private void onRestart() {
         gameOverOverlay.setVisible(false);
         gameOverOverlay.setManaged(false);
-        spectatorTargetId = null; // 退出旁观模式
+        spectatorTargetId = null;
         GameState state = sm.getState();
         Player me = state != null ? state.getPlayers().get(localId()) : null;
-        // 【新增】保存最高分
+        // 保存最高分（如果当前分数超过历史最高分）
         if (me != null && me.getScore() > me.getHighScore()) {
             me.setHighScore(me.getScore());
         }
-        // 【新增】落后30m重生：找到最落后的存活玩家，在其后30m重生
+        // 计算重生位置：最落后玩家后方30m（300像素）
         double fallbackY = 0;
         if (state != null) {
             for (Player p : state.getPlayers().values()) {
                 if (p.isActive() && p.getY() < fallbackY) {
-                    fallbackY = p.getY(); // y越小（越上方）越落后
+                    fallbackY = p.getY();
                 }
             }
         }
-        double spawnY = fallbackY + 300; // 落后30m = 300像素
+        double spawnY = fallbackY + 300;
         if (me != null) {
             me.setActive(true);
             me.setLives(GameConstants.MAX_LIVES);
-            me.setScore(0); // 从0开始计分
+            me.setScore(0);
+            me.setTimeBonusScore(0);
+            me.setJoinOffsetY(spawnY);
             me.setY(spawnY);
             me.setX("left".equals(me.getSide()) ? GameConstants.WALL_WIDTH + 5 : GameConstants.CANVAS_WIDTH - GameConstants.WALL_WIDTH - GameConstants.PLAYER_SIZE - 5);
             me.setVy(0);
             me.setBlocked(false);
             me.setPaused(false);
             me.setInvincible(true);
-            me.setInvincibleTimer(2.0); // 重生后2秒无敌
+            me.setInvincibleTimer(2.0);
             me.setSpectator(false);
-            // 【关键修复】重置摄像机到重生位置，避免立刻再次死亡
+            me.setKnockedBack(false);
+            me.setRotationAngle(0);
+            me.setTargetRotation(0);
             double spawnCamY = spawnY - GameConstants.CANVAS_HEIGHT * GameConstants.CAMERA_OFFSET_RATIO;
             me.setCameraY(spawnCamY);
             me.setCameraTargetY(spawnCamY);
         }
-        // 【关键修复】同步全局摄像机到重生位置
         if (state != null) {
             double spawnCamY = spawnY - GameConstants.CANVAS_HEIGHT * GameConstants.CAMERA_OFFSET_RATIO;
             state.setCameraY(spawnCamY);
@@ -629,21 +641,33 @@ public class GameController {
         }
         if (leaderboard != null) { leaderboard.setVisible(true); leaderboard.setManaged(true); }
         String myId = localId();
+        long now = System.currentTimeMillis();
         allPlayers.stream().sorted((a, b) -> Integer.compare(b.getScore(), a.getScore())).forEach(p -> {
+            // 离线超过1分钟的玩家：不显示在排行榜上（但保留数据）
+            if (p.isDisconnected() && p.getOfflineTime() > 0 && (now - p.getOfflineTime()) > 60000) {
+                return; // 跳过超过1分钟的离线玩家
+            }
+
             StringBuilder text = new StringBuilder();
             text.append(p.getName()).append(": ").append(p.getScore());
-            if (p.isPaused()) text.append(" (暂停)");
+            if (p.isPaused() && !p.isDisconnected()) text.append(" (暂停)");
             if (p.isDisconnected()) text.append(" [离线]");
             if (!p.isActive()) text.append(" [死亡]");
             Label lbl = new Label(text.toString());
-            StringBuilder style = new StringBuilder("-fx-text-fill: ").append(p.getColor()).append("; -fx-font-size: 12px;");
+            StringBuilder style = new StringBuilder("-fx-text-fill: ").append(p.getFillColor()).append("; -fx-font-size: 12px;");
             if (p.getId().equals(myId)) style.append(" -fx-font-weight: bold;");
-            // 死亡 = 删除线
+
+            // 死亡玩家：删除线
             if (!p.isActive()) style.append(" -fx-strikethrough: true;");
-            // 掉线 = 半透明
-            if (p.isDisconnected()) style.append(" -fx-opacity: 0.4;");
-            else if (!p.isActive()) style.append(" -fx-opacity: 0.6;");
-            else if (p.isPaused()) style.append(" -fx-opacity: 0.7;");
+
+            // 离线玩家：半透明（保留死亡玩家的删除线）
+            if (p.isDisconnected()) {
+                style.append(" -fx-opacity: 0.4;");
+            } else if (!p.isActive()) {
+                style.append(" -fx-opacity: 0.6;");
+            } else if (p.isPaused()) {
+                style.append(" -fx-opacity: 0.7; -fx-font-style: italic;");
+            }
             lbl.setStyle(style.toString());
             lbList.getChildren().add(lbl);
         });
@@ -657,29 +681,38 @@ public class GameController {
         String text = "最终得分: " + score;
         if (high > 0) text += " (最高分: " + high + ")";
         finalScoreLabel.setText(text);
-        // 全局gameover时隐藏重生按钮
         if (respawnBtn != null) { respawnBtn.setVisible(false); respawnBtn.setManaged(false); }
         if (deathHintLabel != null) { deathHintLabel.setVisible(false); deathHintLabel.setManaged(false); }
         gameOverOverlay.setVisible(true);
         gameOverOverlay.setManaged(true);
     }
 
-    /** 【新增】显示单个玩家死亡UI */
     private void showDeathUI(GameState state) {
         Player me = state.getPlayers().get(localId());
         if (me == null) return;
         int score = me.getScore();
         int high = me.getHighScore();
         String text = "你已死亡! 得分: " + score;
-        if (high > 0) text += " (最高: " + high + ")";
+        if (high > 0 && score < high) text += " (最高: " + high + ")";
         finalScoreLabel.setText(text);
-        if (respawnBtn != null) { respawnBtn.setVisible(true); respawnBtn.setManaged(true); }
-        if (deathHintLabel != null) { deathHintLabel.setVisible(true); deathHintLabel.setManaged(true); }
-        gameOverOverlay.setVisible(true);
-        gameOverOverlay.setManaged(true);
+        // 使用底部提示区域显示提示和重生按钮
+        if (bottomDeathHint != null) {
+            bottomDeathHint.setText("按暂停键可以重生或退出");
+            bottomDeathHint.setVisible(true);
+        }
+        if (bottomRespawnBtn != null) {
+            bottomRespawnBtn.setVisible(true);
+            bottomRespawnBtn.setManaged(true);
+        }
+        if (bottomHintBox != null) {
+            bottomHintBox.setVisible(true);
+            bottomHintBox.setManaged(true);
+        }
+        // 游戏结束遮罩不显示
+        gameOverOverlay.setVisible(false);
+        gameOverOverlay.setManaged(false);
     }
 
-    /** 【新增】隐藏死亡UI */
     private void hideDeathUI() {
         if (gameOverOverlay != null && gameOverOverlay.isVisible() && !"gameover".equals(sm.getState().getPhase())) {
             gameOverOverlay.setVisible(false);
@@ -689,9 +722,7 @@ public class GameController {
         if (deathHintLabel != null) { deathHintLabel.setVisible(false); deathHintLabel.setManaged(false); }
     }
 
-    // 【新增】旁观模式方法
     private void enterSpectatorMode(GameState state) {
-        // 找到第一个存活的非自己玩家
         for (Player p : state.getPlayers().values()) {
             if (p.isActive() && !p.getId().equals(localId())) {
                 spectatorTargetId = p.getId();
@@ -710,7 +741,6 @@ public class GameController {
             showHint("无其他存活玩家");
             return;
         }
-        // 循环切换
         int currentIdx = -1;
         for (int i = 0; i < activePlayers.size(); i++) {
             if (activePlayers.get(i).getId().equals(spectatorTargetId)) {
@@ -730,7 +760,6 @@ public class GameController {
 
     private void setConnStatus(String text, boolean ok) {
         if (connStatus == null) return;
-        // 【修复】WebSocket 回调在后台线程，所有 UI 操作必须走 FX 线程
         Platform.runLater(() -> {
             connStatus.setText(text);
             connStatus.setStyle("-fx-text-fill: " + (ok ? "#4ecca3" : "#ff6b6b") + ";");

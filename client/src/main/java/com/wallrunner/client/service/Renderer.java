@@ -1,6 +1,7 @@
 package com.wallrunner.client.service;
 
 import com.wallrunner.shared.constants.GameConstants;
+import com.wallrunner.shared.entity.Collectible;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Obstacle;
 import com.wallrunner.shared.entity.Player;
@@ -15,16 +16,12 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * 【模块】client / service
- * 【代号】Z
- * 【职责】Canvas 渲染管线。
- * 【重构】2026-05-08: render 接收外部 cameraY，支持每个玩家独立视角。
- * 【修复】2026-05-10:
- *       1. render 方法新增 localPlayerId 参数，彻底替换硬编码 "local"。
- * 【修复】2026-05-11:
- *       1. 使用 fillColor + strokeColor 渲染玩家，支持自定义颜色。
- *       2. 渲染击退旋转动画：玩家被撞击后缓慢倾斜旋转。
- *       3. 闪烁无敌状态半透明闪烁效果。
+ * Canvas 渲染管线。
+ *
+ * 职责：
+ * - 绘制背景、墙壁、障碍物、玩家、HUD、覆盖层。
+ * - 支持粒子特效（跳跃尾迹）。
+ * - 预留：可收集物渲染、特效渲染、技能可视化。
  */
 public class Renderer {
 
@@ -52,8 +49,10 @@ public class Renderer {
 
         drawWalls(camY);
         drawObstacles(state, camY);
+        drawCollectibles(state, camY);  // 预留：可收集物渲染
         drawParticles(camY);
         drawPlayers(state, camY, localPlayerId);
+        drawOffScreenIndicators(state, camY, localPlayerId);
 
         Player me = state.getPlayers().get(localPlayerId);
         drawHUD(me);
@@ -184,15 +183,54 @@ public class Renderer {
         }
     }
 
+    // 预留：可收集物渲染
+    private void drawCollectibles(GameState state, double cameraY) {
+        for (Collectible c : state.getCollectibles()) {
+            if (c.isCollected()) continue;
+            double sy = c.getY() - cameraY;
+            if (sy < -50 || sy > 650) continue;
+
+            // 浮动效果
+            double floatY = sy + Math.sin(System.currentTimeMillis() / 300.0 + c.getOscillationPhase()) * 3;
+
+            switch (c.getType()) {
+                case "coin" -> {
+                    gc.setFill(Color.web("#f1c40f"));
+                    gc.fillOval(c.getX(), floatY, c.getWidth(), c.getHeight());
+                    gc.setStroke(Color.web("#d4ac0d"));
+                    gc.setLineWidth(1);
+                    gc.strokeOval(c.getX(), floatY, c.getWidth(), c.getHeight());
+                }
+                case "gem" -> {
+                    gc.setFill(Color.web("#9b59b6"));
+                    double cx = c.getX() + c.getWidth() / 2;
+                    double cy = floatY + c.getHeight() / 2;
+                    gc.fillPolygon(
+                            new double[]{cx, cx + c.getWidth() / 2, cx, cx - c.getWidth() / 2},
+                            new double[]{floatY, cy, floatY + c.getHeight(), cy}, 4);
+                }
+                case "powerup", "shield" -> {
+                    gc.setFill(Color.web("#4ecca3", 0.6));
+                    gc.fillOval(c.getX() - 2, floatY - 2, c.getWidth() + 4, c.getHeight() + 4);
+                    gc.setFill(Color.web("#fff"));
+                    gc.fillOval(c.getX(), floatY, c.getWidth(), c.getHeight());
+                }
+                default -> {
+                    gc.setFill(Color.web("#aaa"));
+                    gc.fillRect(c.getX(), floatY, c.getWidth(), c.getHeight());
+                }
+            }
+        }
+    }
+
     private void drawPlayers(GameState state, double cameraY, String localPlayerId) {
         for (Player p : state.getPlayers().values()) {
             if (!p.isActive()) continue;
             double sy = p.getY() - cameraY;
             if (sy < -100 || sy > 700) continue;
 
-            // 【修复】使用 fillColor + strokeColor，优先于旧 color 字段
             String fillColor = p.getFillColor() != null && !p.getFillColor().isEmpty()
-                    ? p.getFillColor() : (p.getColor() != null ? p.getColor() : "#4ecca3");
+                    ? p.getFillColor() : "#4ecca3";
             String strokeColor = p.getStrokeColor() != null && !p.getStrokeColor().isEmpty()
                     ? p.getStrokeColor() : fillColor;
 
@@ -203,6 +241,7 @@ public class Renderer {
             double rotation = p.getRotationAngle();
 
             gc.save();
+            // 【修复】暂停玩家半透明（他人客机可见）
             if (isPaused) gc.setGlobalAlpha(0.4);
 
             if (p.isJumping() && !knockedBack) {
@@ -213,13 +252,13 @@ public class Renderer {
                 gc.fillRect(p.getX() + tailX * 1.8, sy + 25, p.getWidth(), p.getHeight() - 30);
             }
 
-            // 闪烁效果
-            if (invincible) {
+            // 闪烁效果（暂停玩家保持半透明，不闪烁）
+            if (invincible && !isPaused) {
                 double alpha = (System.currentTimeMillis() % 200 < 100) ? 0.3 : 0.7;
                 gc.setGlobalAlpha(alpha);
             }
 
-            // 【关键修复】击退旋转动画：以玩家中心为原点旋转
+            // 击退旋转
             double centerX = p.getX() + p.getWidth() / 2;
             double centerY = sy + p.getHeight() / 2;
             if (knockedBack && Math.abs(rotation) > 0.1) {
@@ -228,7 +267,7 @@ public class Renderer {
                 gc.translate(-centerX, -centerY);
             }
 
-            // 绘制玩家主体（填充+描边）
+            // 绘制玩家主体
             gc.setFill(Color.web(fillColor));
             gc.fillRect(p.getX(), sy, p.getWidth(), p.getHeight());
             gc.setStroke(Color.web(strokeColor));
@@ -248,7 +287,7 @@ public class Renderer {
                 gc.strokeRect(p.getX() - 2, sy - 2, p.getWidth() + 4, p.getHeight() + 4);
             }
 
-            if (invincible) {
+            if (invincible && !isPaused) {
                 gc.setGlobalAlpha(1.0);
             }
 
@@ -270,6 +309,7 @@ public class Renderer {
             if (p.isDisconnected()) nameText += " [离线]";
             gc.fillText(nameText, p.getX() + p.getWidth() / 2, sy - 8);
 
+            // 【修复】暂停玩家头顶显示 "暂停" 标签
             if (isPaused) {
                 gc.setFill(Color.web("rgba(255,255,255,0.8)"));
                 gc.setFont(Font.font("Segoe UI Emoji", 10));
@@ -279,17 +319,122 @@ public class Renderer {
             // 分数
             gc.setFont(Font.font("Segoe UI Emoji", 10));
             gc.setFill(Color.web("#aaa"));
+            // 【修复】暂停玩家分数位置上移，避免与"暂停"标签重叠
             gc.fillText(p.getScore() + "分", p.getX() + p.getWidth() / 2, sy - (isPaused ? 32 : 18));
+
+            // 预留：特效可视化（如护盾光环）
+            if (p.getActivePowerUp() != null && !p.getActivePowerUp().isEmpty()) {
+                gc.setStroke(Color.web("#4ecca3", 0.5));
+                gc.setLineWidth(2);
+                gc.strokeOval(p.getX() - 4, sy - 4, p.getWidth() + 8, p.getHeight() + 8);
+            }
 
             gc.restore();
         }
     }
 
+
+
+    private void drawOffScreenIndicators(GameState state, double cameraY, String localPlayerId) {
+        Player me = state.getPlayers().get(localPlayerId);
+        if (me == null || !me.isActive()) return;
+
+        double myY = me.getY();
+        double screenTop = cameraY;
+        double screenBottom = cameraY + GameConstants.CANVAS_HEIGHT;
+
+        // 收集屏幕外的玩家
+        List<Player> above = new ArrayList<>();
+        List<Player> below = new ArrayList<>();
+
+        for (Player p : state.getPlayers().values()) {
+            if (!p.isActive() || p.getId().equals(localPlayerId)) continue;
+            if (p.isPaused()) continue; // 暂停玩家不显示指示器
+            double sy = p.getY() - cameraY;
+            if (sy < -20) {
+                above.add(p);
+            } else if (sy > GameConstants.CANVAS_HEIGHT + 20) {
+                below.add(p);
+            }
+        }
+
+        // 按距离排序
+        above.sort((a, b) -> Double.compare(Math.abs(a.getY() - myY), Math.abs(b.getY() - myY)));
+        below.sort((a, b) -> Double.compare(Math.abs(a.getY() - myY), Math.abs(b.getY() - myY)));
+
+        // 绘制上方指示器（领先玩家）
+        if (!above.isEmpty()) {
+            drawIndicatorBubble(above, myY, true, cameraY);
+        }
+        // 绘制下方指示器（落后玩家）
+        if (!below.isEmpty()) {
+            drawIndicatorBubble(below, myY, false, cameraY);
+        }
+    }
+
+    private void drawIndicatorBubble(List<Player> players, double myY, boolean isAbove, double cameraY) {
+        gc.save();
+        gc.setFont(Font.font("Segoe UI Emoji", 10));
+
+        // 构建气泡文本
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(players.size(), 3); i++) {
+            Player p = players.get(i);
+            if (i > 0) sb.append("  ");
+            sb.append(p.getName());
+            int dist = (int) (Math.abs(p.getY() - myY) / 10.0);
+            sb.append(" ").append(dist).append("m");
+        }
+        if (players.size() > 3) {
+            sb.append(" +").append(players.size() - 3);
+        }
+        String text = sb.toString();
+
+        // 测量文本宽度
+        javafx.scene.text.Text measure = new javafx.scene.text.Text(text);
+        measure.setFont(Font.font("Segoe UI Emoji", 10));
+        double textWidth = measure.getLayoutBounds().getWidth();
+        double paddingX = 12;
+        double paddingY = 6;
+        double bubbleW = textWidth + paddingX * 2;
+        double bubbleH = 22;
+        double bubbleX = (GameConstants.CANVAS_WIDTH - bubbleW) / 2;
+        double bubbleY = isAbove ? 4 : GameConstants.CANVAS_HEIGHT - bubbleH - 4;
+
+        // 绘制气泡背景
+        gc.setFill(Color.web("rgba(15,52,96,0.85)"));
+        gc.fillRoundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8, 8);
+        gc.setStroke(Color.web("rgba(78,204,163,0.5)"));
+        gc.setLineWidth(1);
+        gc.strokeRoundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8, 8);
+
+        // 绘制箭头
+        double arrowSize = 6;
+        double arrowX = GameConstants.CANVAS_WIDTH / 2;
+        if (isAbove) {
+            // 上方气泡：箭头向上指（指向屏幕外的领先玩家）
+            gc.setFill(Color.web("#4ecca3"));
+            gc.fillPolygon(
+                new double[]{arrowX - arrowSize, arrowX + arrowSize, arrowX},
+                new double[]{bubbleY - 2, bubbleY - 2, bubbleY - 2 - arrowSize}, 3);
+        } else {
+            // 下方气泡：箭头向下指（指向屏幕外的落后玩家）
+            gc.setFill(Color.web("#e94560"));
+            gc.fillPolygon(
+                new double[]{arrowX - arrowSize, arrowX + arrowSize, arrowX},
+                new double[]{bubbleY + bubbleH + 2, bubbleY + bubbleH + 2, bubbleY + bubbleH + 2 + arrowSize}, 3);
+        }
+
+        // 绘制文本
+        gc.setFill(Color.web("white"));
+        gc.fillText(text, bubbleX + paddingX, bubbleY + bubbleH - 6);
+
+        gc.restore();
+    }
     private void drawHUD(Player me) {
         if (me == null) return;
         gc.setFill(Color.web("white"));
         gc.setFont(Font.font("Segoe UI Emoji", 18));
-        // 【新增】显示最高分
         String scoreText = "分数: " + me.getScore();
         if (me.getHighScore() > 0) {
             scoreText += " (最高: " + me.getHighScore() + ")";
@@ -309,7 +454,13 @@ public class Renderer {
             drawHeart(14 + i * 32, 68, 24);
         }
 
-        // 【新增】旁观模式提示
+        // 预留：金币显示
+        if (me.getCoinsCollected() > 0) {
+            gc.setFill(Color.web("#f1c40f"));
+            gc.setFont(Font.font("Segoe UI Emoji", 14));
+            gc.fillText("💰 " + me.getCoinsCollected(), 15, 100);
+        }
+
         if (me.isSpectator()) {
             gc.setFill(Color.web("rgba(255,255,255,0.8)"));
             gc.setFont(Font.font("Segoe UI Emoji", 14));

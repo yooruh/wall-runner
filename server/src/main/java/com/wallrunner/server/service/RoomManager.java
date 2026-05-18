@@ -1,52 +1,37 @@
 package com.wallrunner.server.service;
 
+import com.wallrunner.shared.constants.GameConstants;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
-import com.wallrunner.shared.physics.GamePhysics;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 【模块】server / service
- * 【代号】X + Y
- * 【职责】房间生命周期管理。每个房间持有独立 GameState（Y层）。
- * 【原则】Z轴数据分区：roomId 为分片键，房间之间零共享状态。
- * 【修复】2026-05-08: 新增 createRoom(String roomId, String hostSessionId)，
- *        支持公共服务器使用自定义房间 ID，避免 getOrCreateRoom() 中 roomId 不匹配导致 NPE。
- * 【修复】2026-05-10:
- *       1. createRoom 初始化 phase 为 "menu"，与房主客户端保持一致。
- * 【修复】2026-05-11:
- *       1. 随机房间号生成改为大写字母+数字组合（6位），避免纯数字房间号。
+ * 房间（房间）生命周期管理。
+ *
+ * 职责：
+ * - 创建/销毁房间，维护房间与房主映射。
+ * - 每个房间持有独立 GameState（线程安全由 ConcurrentHashMap 保证）。
+ * - 掉线玩家标记为 disconnected，不立即移除，便于断线重连。
  */
 @Service
 public class RoomManager {
+
     private final Map<String, GameState> rooms = new ConcurrentHashMap<>();
-    private final Map<String, String> roomHostMap = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, Integer>> leftPlayerScores = new ConcurrentHashMap<>();
-    private final SecureRandom random = new SecureRandom();
-    private static final String ROOM_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 去除易混淆字符 I1O0
+    private final Map<String, String> roomHosts = new ConcurrentHashMap<>();
 
     public String createRoom(String hostSessionId) {
-        String roomId = generateRoomId();
+        String roomId = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         return createRoom(roomId, hostSessionId);
     }
 
-    private String generateRoomId() {
-        StringBuilder sb = new StringBuilder(6);
-        for (int i = 0; i < 6; i++) {
-            sb.append(ROOM_CHARS.charAt(random.nextInt(ROOM_CHARS.length())));
-        }
-        return sb.toString();
-    }
-
     public String createRoom(String roomId, String hostSessionId) {
-        GameState state = new GameState();
-        state.setPhase("menu");
-        rooms.put(roomId, state);
-        roomHostMap.put(roomId, hostSessionId);
+        if (rooms.containsKey(roomId)) return null;
+        rooms.put(roomId, new GameState());
+        roomHosts.put(roomId, hostSessionId);
         return roomId;
     }
 
@@ -58,51 +43,62 @@ public class RoomManager {
         return rooms.get(roomId);
     }
 
-    public void removeRoom(String roomId) {
-        rooms.remove(roomId);
-        roomHostMap.remove(roomId);
-        leftPlayerScores.remove(roomId);
+    public String getHost(String roomId) {
+        return roomHosts.get(roomId);
     }
 
     public boolean joinRoom(String roomId, Player player) {
         GameState state = rooms.get(roomId);
         if (state == null) return false;
-        Map<String, Integer> scores = leftPlayerScores.get(roomId);
-        if (scores != null && scores.containsKey(player.getId())) {
-            int savedScore = scores.get(player.getId());
-            player.setScore(savedScore);
-            player.setTimeBonusScore(savedScore);
+        if (player.getId() == null) return false;
+        Player existing = state.getPlayers().get(player.getId());
+        if (existing != null) {
+            // 掉线重连：保留分数、生命值和状态，恢复在线
+            existing.setDisconnected(false);
+            existing.setOfflineTime(0);
+            existing.setLastPingTime(System.currentTimeMillis());
+            existing.setPingAcknowledged(true);
+            existing.setPaused(false); // 取消暂停状态
+            existing.setName(player.getName());
+            existing.setFillColor(player.getFillColor());
+            existing.setStrokeColor(player.getStrokeColor());
+            // 如果未死亡，将其位置改为最落后玩家后方30m
+            if (existing.isActive()) {
+                double fallbackY = 0;
+                for (Player p : state.getPlayers().values()) {
+                    if (p.isActive() && p.getY() < fallbackY) {
+                        fallbackY = p.getY();
+                    }
+                }
+                double spawnY = fallbackY + 300;
+                existing.setY(spawnY);
+                existing.setJoinOffsetY(spawnY);
+                existing.setCameraY(spawnY - GameConstants.CANVAS_HEIGHT * GameConstants.CAMERA_OFFSET_RATIO);
+                existing.setCameraTargetY(spawnY - GameConstants.CANVAS_HEIGHT * GameConstants.CAMERA_OFFSET_RATIO);
+            }
+            return true;
         }
-        player.setDisconnected(false);
         state.getPlayers().put(player.getId(), player);
         return true;
     }
 
     public void leaveRoom(String roomId, String playerId) {
         GameState state = rooms.get(roomId);
-        if (state != null) {
-            Player p = state.getPlayers().get(playerId);
-            if (p != null) {
-                p.setDisconnected(true);
-                leftPlayerScores.computeIfAbsent(roomId, k -> new ConcurrentHashMap<>()).put(playerId, p.getScore());
-            }
-            state.getPlayers().remove(playerId);
-            if (state.getPlayers().isEmpty()) {
-                removeRoom(roomId);
-            }
+        if (state == null) return;
+        Player p = state.getPlayers().get(playerId);
+        if (p != null) {
+            p.setDisconnected(true);
+        }
+        String hostId = roomHosts.get(roomId);
+        if (hostId != null && hostId.equals(playerId)) {
+            roomHosts.remove(roomId);
+            rooms.remove(roomId);
         }
     }
 
-    public String getHost(String roomId) {
-        return roomHostMap.get(roomId);
-    }
-
-    public void startGame(String roomId) {
-        GameState state = rooms.get(roomId);
-        if (state != null) {
-            GamePhysics.initState(state);
-            state.setPhase("playing");
-        }
+    public void removeRoom(String roomId) {
+        rooms.remove(roomId);
+        roomHosts.remove(roomId);
     }
 
     public Map<String, GameState> getAllRooms() {

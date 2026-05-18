@@ -14,20 +14,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 【模块】server / service
- * 【代号】X + Y
- * 【职责】公共服务器模式（Dedicated）：服务端运行权威物理，向所有客户端广播 STATE。
- * 【原则】物理计算委托给 GamePhysics（Y层），本类仅做调度与网络 I/O（X层）。
- * 【修复】2026-05-08: getOrCreateRoom() 使用 RoomManager.createRoom(roomId, hostSessionId)
- *        确保房间 ID 在 RoomManager 中真实存在，避免 getRoom(roomId) 返回 null 导致 NPE。
- * 【修复】2026-05-10:
- *       1. handleInput 处理 "start" 时重新激活 activeDedicated，
- *          解决 gameover 后无法重新开始的问题。
- *       2. 添加 @EnableScheduling 启用定时调度。
- * 【修复】2026-05-11:
- *       1. 改为单房间模式：所有玩家进入同一个 "DEDICATED-MAIN" 房间。
- *       2. 广播优化：直接 writeValueAsString(state)，避免 convertValue 双重序列化开销。
- *       3. 使用异步发送避免慢客户端阻塞广播。
+ * 公共服务器模式（Dedicated）：服务端运行权威物理，向所有客户端广播 STATE。
+ *
+ * 原则：物理计算委托给 GamePhysics（Y层），本类仅做调度与网络 I/O（X层）。
  */
 @Service
 public class DedicatedService {
@@ -45,7 +34,6 @@ public class DedicatedService {
     }
 
     public synchronized String getOrCreateRoom() {
-        // 【修复】单房间模式：所有玩家共享同一个房间
         if (!roomManager.isRoomExists(MAIN_ROOM_ID)) {
             roomManager.createRoom(MAIN_ROOM_ID, "SERVER");
             GameState state = roomManager.getRoom(MAIN_ROOM_ID);
@@ -67,7 +55,7 @@ public class DedicatedService {
         roomManager.joinRoom(roomId, player);
         sessionManager.bindRoom(session.getId(), roomId);
         if (isLateJoin && state != null) {
-            com.wallrunner.shared.physics.GamePhysics.initJoiningPlayer(state, player);
+            GamePhysics.initJoiningPlayer(state, player);
         }
         if (state != null && state.getPlayers().size() >= 1 && !Boolean.TRUE.equals(activeDedicated.get(roomId))) {
             startGame(roomId);
@@ -97,7 +85,6 @@ public class DedicatedService {
         }
     }
 
-    // 【修复】物理计算恢复60fps（16ms），广播降到30fps（每2帧一次），平衡同步与带宽
     private int broadcastCounter = 0;
 
     @Scheduled(fixedRate = 8)
@@ -108,17 +95,32 @@ public class DedicatedService {
             GameState state = roomManager.getRoom(roomId);
             if (state == null) continue;
             GamePhysics.update(state);
-            // 【新增】掉线检测：15秒未收到心跳则标记为离线
+
+            // 掉线检测：双重确认机制
             long now = System.currentTimeMillis();
             for (Player p : state.getPlayers().values()) {
-                if (p.isActive() && !p.isDisconnected() && p.getLastPingTime() > 0) {
-                    if (now - p.getLastPingTime() > 15000) {
-                        p.setDisconnected(true);
-                        System.out.println("[Dedicated] Player " + p.getName() + " marked offline");
-                    }
+                if (p.isDisconnected()) {
+                    // 已离线玩家：检查是否超过1分钟，超过则隐藏分数
+                    continue;
+                }
+                if (p.getLastPingTime() <= 0) {
+                    p.setLastPingTime(now);
+                    continue;
+                }
+                long elapsed = now - p.getLastPingTime();
+                if (elapsed > 8000 && p.isPingAcknowledged()) {
+                    // 超过8秒未收到心跳，发送ping请求
+                    p.setPingAcknowledged(false);
+                    sendPing(roomId, p.getId());
+                } else if (elapsed > 15000 && !p.isPingAcknowledged()) {
+                    // 超过15秒仍未收到回应，标记为离线
+                    p.setDisconnected(true);
+                    p.setOfflineTime(now);
+                    p.setPaused(true); // 离线玩家视为暂停状态（无碰撞）
+                    System.out.println("[Dedicated] Player " + p.getName() + " marked offline");
                 }
             }
-            // 每2帧广播一次（30fps），减少网络负载但保持60fps物理
+
             broadcastCounter++;
             if (broadcastCounter >= 2) {
                 broadcastCounter = 0;
@@ -130,14 +132,31 @@ public class DedicatedService {
         }
     }
 
+    private void sendPing(String roomId, String playerId) {
+        // 找到玩家的 WebSocketSession 并发送 ping
+        for (org.springframework.web.socket.WebSocketSession s : sessionManager.getAllSessions().values()) {
+            if (roomId.equals(sessionManager.getRoomId(s.getId())) && s.isOpen()) {
+                try {
+                    java.util.Map<String, Object> ping = new java.util.HashMap<>();
+                    ping.put("type", "ping");
+                    ping.put("roomId", roomId);
+                    ping.put("playerId", playerId);
+                    ping.put("timestamp", System.currentTimeMillis());
+                    s.sendMessage(new org.springframework.web.socket.TextMessage(objectMapper.writeValueAsString(ping)));
+                } catch (Exception e) {
+                    System.err.println("[Dedicated] Ping send failed: " + e.getMessage());
+                }
+                break;
+            }
+        }
+    }
+
     private void broadcastState(String roomId, GameState state) {
         try {
-            // 【修复】直接序列化 GameState，避免 convertValue 双重开销
             String payloadJson = objectMapper.writeValueAsString(state);
             Map<String, Object> msg = Map.of("type", "state", "payload", payloadJson);
             String json = objectMapper.writeValueAsString(msg);
             TextMessage tm = new TextMessage(json);
-            // 【修复】遍历发送，慢客户端不阻塞（Spring WebSocket 发送本身是异步的）
             for (WebSocketSession s : sessionManager.getAllSessions().values()) {
                 if (roomId.equals(sessionManager.getRoomId(s.getId())) && s.isOpen()) {
                     try {

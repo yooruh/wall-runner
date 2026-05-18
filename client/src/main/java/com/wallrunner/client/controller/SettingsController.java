@@ -15,14 +15,12 @@ import java.util.Set;
 import java.util.prefs.Preferences;
 
 /**
- * 【模块】client / controller
- * 【代号】Z
- * 【职责】设置面板逻辑：读取/保存本地偏好。
- * 【重构】2026-05-08:
- *       1. 按键绑定改为"按下想绑定的按钮"方式，支持多键绑定同一行为。
- *       2. 每个已绑定按键可单独删除。
- *       3. 新增时间奖励设置（间隔秒数、每次加分）。
- *       4. 分数与高度关联，时间奖励独立计算。
+ * 设置面板逻辑：读取/保存本地偏好。
+ *
+ * 职责：
+ * - 按键绑定（支持多键绑定同一行为）。
+ * - 时间奖励设置。
+ * - 预留：主题切换（深色/浅色）接口。
  */
 public class SettingsController {
 
@@ -35,6 +33,21 @@ public class SettingsController {
     @FXML private Label jumpKeyHint;
     @FXML private TextField timeIntervalField;
     @FXML private TextField timePointsField;
+
+    // 角色颜色设置
+    @FXML private CheckBox autoColorCheck;
+    @FXML private VBox customColorBox;
+    @FXML private TextField fillColorField;
+    @FXML private TextField strokeColorField;
+    @FXML private javafx.scene.layout.Region fillColorPreview;
+    @FXML private javafx.scene.layout.Region strokeColorPreview;
+
+    // 【跨设备联机】服务器地址配置
+    @FXML private TextField serverAddressField;
+    @FXML private TextField serverPortField;
+
+    // 预留：主题选择器
+    @FXML private ComboBox<String> themeSelector;
 
     private final WebSocketClientService wsService = WebSocketClientService.getInstance();
     private final Preferences prefs = Preferences.userNodeForPackage(SettingsController.class);
@@ -71,7 +84,50 @@ public class SettingsController {
         timeIntervalField.setText(String.valueOf(interval));
         timePointsField.setText(String.valueOf(points));
 
-        // "按下绑定"按钮事件
+        // 【跨设备联机】加载服务器地址配置
+        String savedAddress = prefs.get("server_address", "localhost");
+        int savedPort = prefs.getInt("server_port", 8080);
+        if (serverAddressField != null) serverAddressField.setText(savedAddress);
+        if (serverPortField != null) serverPortField.setText(String.valueOf(savedPort));
+        wsService.setServerAddress(savedAddress);
+        wsService.setServerPort(savedPort);
+
+        // 预留：主题选择器初始化
+        if (themeSelector != null) {
+            themeSelector.getItems().addAll("深色", "浅色");
+            String savedTheme = prefs.get("theme", "深色");
+            themeSelector.setValue(savedTheme);
+        }
+
+        // 角色颜色设置初始化
+        boolean autoColor = prefs.getBoolean("auto_color", true);
+        if (autoColorCheck != null) {
+            autoColorCheck.setSelected(autoColor);
+            autoColorCheck.selectedProperty().addListener((obs, old, val) -> {
+                if (customColorBox != null) {
+                    customColorBox.setVisible(!val);
+                    customColorBox.setManaged(!val);
+                }
+            });
+        }
+        if (customColorBox != null) {
+            customColorBox.setVisible(!autoColor);
+            customColorBox.setManaged(!autoColor);
+        }
+        String savedFill = prefs.get("fill_color", "");
+        String savedStroke = prefs.get("stroke_color", "");
+        if (fillColorField != null) fillColorField.setText(savedFill);
+        if (strokeColorField != null) strokeColorField.setText(savedStroke);
+        updateColorPreviews();
+
+        // 颜色输入监听
+        if (fillColorField != null) {
+            fillColorField.textProperty().addListener((obs, old, val) -> updateColorPreviews());
+        }
+        if (strokeColorField != null) {
+            strokeColorField.textProperty().addListener((obs, old, val) -> updateColorPreviews());
+        }
+
         btnAddJumpKey.setOnAction(e -> startListeningForKey());
         jumpKeyHint.setText("点击上方按钮后，按下想绑定的按键");
     }
@@ -96,7 +152,6 @@ public class SettingsController {
             stopListening();
             return;
         }
-        // 忽略修饰键和功能键
         if (code == KeyCode.UNDEFINED || code.isModifierKey() || code.isFunctionKey() || code.isNavigationKey()) {
             return;
         }
@@ -168,12 +223,83 @@ public class SettingsController {
             prefs.putInt("time_bonus_points", 10);
         }
 
+        // 【跨设备联机】保存服务器地址配置
+        if (serverAddressField != null) {
+            String address = serverAddressField.getText().trim();
+            if (!address.isEmpty()) {
+                wsService.setServerAddress(address);
+                prefs.put("server_address", address);
+            }
+        }
+        if (serverPortField != null) {
+            try {
+                int port = Integer.parseInt(serverPortField.getText().trim());
+                wsService.setServerPort(port);
+                prefs.putInt("server_port", port);
+            } catch (NumberFormatException e) {
+                wsService.setServerPort(8080);
+                prefs.putInt("server_port", 8080);
+            }
+        }
+
+        // 预留：保存主题设置
+        if (themeSelector != null) {
+            prefs.put("theme", themeSelector.getValue());
+        }
+
+        // 保存角色颜色设置
+        if (autoColorCheck != null) {
+            boolean auto = autoColorCheck.isSelected();
+            prefs.putBoolean("auto_color", auto);
+            if (auto) {
+                wsService.setFillColor("");
+                wsService.setStrokeColor("");
+                prefs.put("fill_color", "");
+                prefs.put("stroke_color", "");
+            } else {
+                String fill = fillColorField != null ? fillColorField.getText().trim() : "";
+                String stroke = strokeColorField != null ? strokeColorField.getText().trim() : "";
+                if (isValidHexColor(fill)) {
+                    wsService.setFillColor(fill);
+                    prefs.put("fill_color", fill);
+                }
+                if (isValidHexColor(stroke)) {
+                    wsService.setStrokeColor(stroke);
+                    prefs.put("stroke_color", stroke);
+                }
+            }
+        }
+
         close();
     }
 
     @FXML
     private void onCancel() {
         close();
+    }
+
+    private void updateColorPreviews() {
+        if (fillColorPreview != null) {
+            String fill = fillColorField != null ? fillColorField.getText().trim() : "";
+            if (isValidHexColor(fill)) {
+                fillColorPreview.setStyle("-fx-background-color: " + fill + "; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+            } else {
+                fillColorPreview.setStyle("-fx-background-color: #333; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+            }
+        }
+        if (strokeColorPreview != null) {
+            String stroke = strokeColorField != null ? strokeColorField.getText().trim() : "";
+            if (isValidHexColor(stroke)) {
+                strokeColorPreview.setStyle("-fx-background-color: " + stroke + "; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+            } else {
+                strokeColorPreview.setStyle("-fx-background-color: #333; -fx-background-radius: 4; -fx-border-radius: 4; -fx-border-color: #444;");
+            }
+        }
+    }
+
+    private boolean isValidHexColor(String hex) {
+        if (hex == null || hex.isEmpty()) return false;
+        return hex.matches("#[0-9A-Fa-f]{6}");
     }
 
     private void close() {

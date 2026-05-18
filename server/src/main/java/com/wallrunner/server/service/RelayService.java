@@ -11,10 +11,9 @@ import org.springframework.web.socket.WebSocketSession;
 import java.util.Map;
 
 /**
- * 【模块】server / service
- * 【代号】X
- * 【职责】P2P 转发模式（Relay）：服务端仅做消息中继，不运行物理。
- * 【原则】纯网络 I/O，零游戏逻辑。
+ * P2P 转发模式（Relay）：服务端仅做消息中继，不运行物理。
+ *
+ * 原则：纯网络 I/O，零游戏逻辑。
  */
 @Service
 public class RelayService {
@@ -38,7 +37,7 @@ public class RelayService {
     public String createRoom(String hostSessionId, String customRoomId) {
         if (customRoomId != null && !customRoomId.isEmpty()) {
             if (roomManager.isRoomExists(customRoomId)) {
-                return null; // 重名
+                return null;
             }
             String roomId = roomManager.createRoom(customRoomId, hostSessionId);
             sessionManager.bindRoom(hostSessionId, roomId);
@@ -51,10 +50,6 @@ public class RelayService {
         boolean ok = roomManager.joinRoom(roomId, player);
         if (ok) {
             sessionManager.bindRoom(session.getId(), roomId);
-            // 【修复】2026-05-10: 不再发送服务端过时的 GameState 给新机。
-            // 服务端 RoomManager 中的状态与房主权威状态完全脱节，
-            // 发送它会导致新机收到 phase="menu" 的过时状态而卡死。
-            // 改由房主在收到 player_joined 后主动广播权威状态。
         }
         return ok;
     }

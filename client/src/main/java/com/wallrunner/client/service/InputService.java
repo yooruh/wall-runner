@@ -9,14 +9,12 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * 【模块】client / service
- * 【代号】Z
- * 【职责】键盘输入抽象。
- * 【重构】2026-05-08:
- *       1. 默认跳跃键=SPACE，ESC/P=暂停/关闭设置。
- *       2. 跳跃键可在设置界面绑定为其他按键。
- *       3. 保留触屏/鼠标点击跳跃。
- * 【修复】2026-05-08: jumpKeys 改为 Set<KeyCode>，支持多键绑定同一行为。
+ * 键盘输入抽象。
+ *
+ * 职责：
+ * - 默认跳跃键 = SPACE，ESC / P = 暂停/关闭设置。
+ * - 支持多键绑定同一行为。
+ * - 保留触屏/鼠标点击跳跃。
  */
 public class InputService {
 

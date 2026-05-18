@@ -2,10 +2,8 @@
     -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Microsoft YaHei", "PingFang SC", "Arial", sans-serif;
 }
 /* ============================================================
-   WallRunner Client Theme — Web Edition Alignment
-   【模块】client / css
-   【代号】Z
-   【职责】全部视觉样式，与原始网页版 (style.css) 严格对齐。
+   WallRunner Client Theme — Hybrid Edition
+   混合旧版本游戏界面 + v2顶部工具条/覆盖层样式
    ============================================================ */
 
 /* ---- Root & Background ---- */
@@ -20,12 +18,28 @@
 
 /* ---- Typography ---- */
 .menu-title {
-    -fx-font-size: 28px;
+    -fx-font-size: 42px;
     -fx-font-weight: bold;
-    -fx-text-fill: #e94560;
-    -fx-padding: 0 0 10 0;
-    -fx-effect: dropshadow(gaussian, rgba(233,69,96,0.4), 10, 0, 0, 0);
-    -fx-letter-spacing: 2px;
+    -fx-text-fill: #4ecca3;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 8, 0, 0, 2);
+}
+
+.menu-section-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #a0c4ff;
+    -fx-font-weight: bold;
+}
+
+.subtitle-label {
+    -fx-text-fill: #7fdbff;
+    -fx-font-size: 18px;
+    -fx-opacity: 0.8;
+}
+
+.section-label {
+    -fx-text-fill: #a0c4ff;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
 }
 
 .mode-title {
@@ -76,6 +90,21 @@
     -fx-border-color: #4ecca3;
 }
 
+.input-field {
+    -fx-background-color: #16213e;
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #7a8ba3;
+    -fx-border-color: #1a5276;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 10 14;
+    -fx-font-size: 14px;
+}
+.input-field:focused {
+    -fx-border-color: #4ecca3;
+    -fx-effect: dropshadow(gaussian, rgba(78,204,163,0.3), 6, 0, 0, 0);
+}
+
 .settings-input {
     -fx-background-color: #0a1a2e;
     -fx-text-fill: white;
@@ -92,7 +121,7 @@
 .mode-card {
     -fx-background-color: #16213e;
     -fx-background-radius: 12;
-    -fx-border-color: #0f3460;
+    -fx-border-color: #1a5276;
     -fx-border-radius: 12;
     -fx-max-width: 420;
     -fx-padding: 20;
@@ -148,36 +177,90 @@
     -fx-background-color: #3dbb94;
 }
 
-.toolbar-btn {
+.primary-button {
+    -fx-background-color: #4ecca3;
+    -fx-text-fill: #0f3460;
     -fx-font-size: 16px;
-    -fx-padding: 0;
-    -fx-pref-width: 34;
-    -fx-pref-height: 34;
-    -fx-background-color: rgba(15,52,96,0.8);
-    -fx-text-fill: white;
-    -fx-background-radius: 8;
-    -fx-border-color: #1a5276;
-    -fx-border-radius: 8;
+    -fx-font-weight: bold;
+    -fx-padding: 12 24;
+    -fx-background-radius: 10px;
     -fx-cursor: hand;
-    -fx-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(78,204,163,0.3), 8, 0, 0, 2);
 }
-.toolbar-btn:hover {
-    -fx-background-color: rgba(233,69,96,0.8);
-    -fx-border-color: #e94560;
+.primary-button:hover {
+    -fx-background-color: #3db892;
+    -fx-effect: dropshadow(gaussian, rgba(78,204,163,0.5), 12, 0, 0, 4);
+}
+.primary-button:pressed {
+    -fx-background-color: #2a9d75;
+    -fx-translate-y: 1px;
 }
 
-/* ---- Game Area ---- */
-.game-toolbar {
+.secondary-button {
+    -fx-background-color: #1a5276;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-padding: 10 20;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+    -fx-border-color: #2471a3;
+    -fx-border-radius: 8px;
+}
+.secondary-button:hover {
+    -fx-background-color: #2471a3;
+    -fx-border-color: #4ecca3;
+}
+.secondary-button:pressed {
+    -fx-background-color: #154360;
+}
+
+.ghost-button {
     -fx-background-color: transparent;
-    -fx-padding: 0 4 6 4;
-    -fx-max-width: 400;
+    -fx-text-fill: #7a8ba3;
+    -fx-font-size: 13px;
+    -fx-padding: 8 16;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+}
+.ghost-button:hover {
+    -fx-text-fill: #a0c4ff;
+    -fx-background-color: rgba(255,255,255,0.05);
 }
 
-.toolbar-info {
+/* ---- v2 顶部工具条 ---- */
+.status-bar {
+    -fx-background-color: #0a1f3d;
+    -fx-padding: 8 16;
+    -fx-border-color: #1a5276;
+    -fx-border-width: 0 0 1 0;
+}
+.status-label {
+    -fx-text-fill: #7a8ba3;
     -fx-font-size: 12px;
-    -fx-text-fill: #888;
+}
+.room-label {
+    -fx-text-fill: #f1c40f;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+.room-label:hover {
+    -fx-text-fill: #f39c12;
+}
+.toolbar-button {
+    -fx-background-color: #1a5276;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-padding: 6 14;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+}
+.toolbar-button:hover {
+    -fx-background-color: #2471a3;
 }
 
+/* ---- Game Area (旧版本样式) ---- */
 .game-canvas-container {
     -fx-background-color: #16213e;
     -fx-border-color: #e94560;
@@ -187,21 +270,53 @@
     -fx-max-height: 600;
 }
 
-/* ---- Status Bar ---- */
-.status-bar {
-    -fx-max-width: 400;
-    -fx-padding: 0 4;
+/* ---- v2 覆盖层样式 ---- */
+.overlay-pane {
+    -fx-background-color: rgba(15,52,96,0.92);
+    -fx-padding: 32;
+    -fx-spacing: 16;
+    -fx-alignment: center;
 }
-
-.conn-status {
-    -fx-font-size: 12px;
-    -fx-text-fill: #888;
-}
-
-.room-id {
-    -fx-font-size: 12px;
-    -fx-text-fill: #f1c40f;
+.overlay-title {
+    -fx-text-fill: #4ecca3;
+    -fx-font-size: 28px;
     -fx-font-weight: bold;
+}
+.overlay-score {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+}
+.overlay-hint {
+    -fx-text-fill: #7a8ba3;
+    -fx-font-size: 14px;
+}
+.overlay-button {
+    -fx-background-color: #4ecca3;
+    -fx-text-fill: #0f3460;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 32;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+    -fx-max-width: 200;
+}
+.overlay-button:hover {
+    -fx-background-color: #3db892;
+}
+.overlay-button-secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: #7a8ba3;
+    -fx-font-size: 14px;
+    -fx-padding: 8 24;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+    -fx-border-color: #1a5276;
+    -fx-border-radius: 6px;
+    -fx-max-width: 200;
+}
+.overlay-button-secondary:hover {
+    -fx-text-fill: #a0c4ff;
+    -fx-border-color: #4ecca3;
 }
 
 /* ---- Hint ---- */
@@ -211,7 +326,7 @@
     -fx-text-alignment: center;
 }
 
-/* ---- Leaderboard (Overlay style like web) ---- */
+/* ---- Leaderboard (旧版本样式) ---- */
 .leaderboard {
     -fx-background-color: rgba(0,0,0,0.6);
     -fx-background-radius: 8;
@@ -223,7 +338,6 @@
     -fx-max-width: 160;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 8, 0, 0, 2);
 }
-
 .lb-title {
     -fx-font-size: 13px;
     -fx-font-weight: bold;
@@ -232,19 +346,13 @@
     -fx-border-color: rgba(255,255,255,0.1);
     -fx-border-width: 0 0 1 0;
 }
-
 .lb-row {
     -fx-font-size: 12px;
     -fx-text-fill: white;
 }
 
-/* ---- Overlays ---- */
-.pause-overlay, .gameover-overlay {
-    -fx-background-color: rgba(0,0,0,0.85);
-    -fx-padding: 0;
-}
-
-.pause-box, .gameover-box, .settings-box {
+/* ---- Settings ---- */
+.settings-box {
     -fx-background-color: #16213e;
     -fx-background-radius: 16;
     -fx-border-color: #0f3460;
@@ -253,70 +361,161 @@
     -fx-spacing: 12;
     -fx-min-width: 260;
     -fx-alignment: center;
+    -fx-max-width: 360;
+    -fx-pref-width: 360;
 }
-
-.pause-title {
-    -fx-font-size: 22px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #f1c40f;
-    -fx-padding: 0 0 20 0;
-}
-
-.gameover-title {
-    -fx-font-size: 28px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #ff6b6b;
-    -fx-padding: 0 0 12 0;
-}
-
-.gameover-score {
-    -fx-font-size: 18px;
-    -fx-text-fill: #f1c40f;
-    -fx-padding: 0 0 16 0;
-}
-
 .settings-title {
     -fx-font-size: 22px;
     -fx-font-weight: bold;
     -fx-text-fill: #4ecca3;
     -fx-padding: 0 0 20 0;
 }
-
 .settings-label {
     -fx-font-size: 14px;
     -fx-text-fill: #ccc;
     -fx-pref-width: 80;
 }
-
 .settings-check {
     -fx-text-fill: #ccc;
 }
-
-.settings-box {
-    -fx-max-width: 360;
-    -fx-pref-width: 360;
-}
-
-/* ---- Toggle Switch (for settings) ---- */
-.toggle-switch {
-    -fx-pref-width: 44;
-    -fx-pref-height: 24;
-    -fx-background-radius: 12;
-    -fx-background-color: #444;
+.settings-add-button {
+    -fx-background-color: #1a5276;
+    -fx-text-fill: #4ecca3;
+    -fx-font-size: 12px;
+    -fx-padding: 6 12;
+    -fx-background-radius: 6px;
     -fx-cursor: hand;
 }
-.toggle-switch.active {
-    -fx-background-color: #4ecca3;
+.settings-add-button:hover {
+    -fx-background-color: #2471a3;
 }
-
-
-/* ---- Settings additions 2026-05-08 ---- */
+.settings-hint {
+    -fx-text-fill: #7a8ba3;
+    -fx-font-size: 11px;
+}
+.settings-primary-button {
+    -fx-background-color: #4ecca3;
+    -fx-text-fill: #0f3460;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 20;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+}
+.settings-primary-button:hover {
+    -fx-background-color: #3db892;
+}
+.settings-secondary-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #7a8ba3;
+    -fx-font-size: 14px;
+    -fx-padding: 10 20;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+    -fx-border-color: #1a5276;
+    -fx-border-radius: 8px;
+}
+.settings-secondary-button:hover {
+    -fx-text-fill: #a0c4ff;
+    -fx-border-color: #4ecca3;
+}
+.settings-combo {
+    -fx-background-color: #16213e;
+    -fx-text-fill: white;
+    -fx-border-color: #1a5276;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+}
 .settings-unit {
     -fx-font-size: 13px;
     -fx-text-fill: #888;
 }
-
 .settings-input.number {
     -fx-pref-width: 60;
     -fx-alignment: center;
+}
+
+/* ---- Scrollbar ---- */
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+.scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+.scroll-bar:vertical {
+    -fx-background-color: #0a1f3d;
+    -fx-padding: 2;
+}
+.scroll-bar:vertical .thumb {
+    -fx-background-color: #1a5276;
+    -fx-background-radius: 4px;
+}
+.scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #2471a3;
+}
+
+/* ---- Room Code ---- */
+.room-code-label {
+    -fx-text-fill: #f1c40f;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-padding: 8;
+    -fx-background-color: rgba(241,196,15,0.1);
+    -fx-background-radius: 6px;
+}
+
+/* ---- 预留：主题切换接口 ---- */
+/* 深色主题（默认）已定义 above */
+/* 浅色主题可通过新增 .menu-root-light, .game-root-light 等类实现 */
+
+
+/* ---- Settings Scroll Pane ---- */
+.settings-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+.settings-scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+.settings-scroll-pane .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-padding: 0 2 0 0;
+}
+.settings-scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: #1a5276;
+    -fx-background-radius: 4px;
+}
+.settings-scroll-pane .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #2471a3;
+}
+
+/* ---- Settings Section Title ---- */
+.settings-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #4ecca3;
+    -fx-padding: 8 0 4 0;
+}
+
+/* ---- Settings Category Separator ---- */
+.settings-category-sep {
+    -fx-background-color: rgba(255,255,255,0.1);
+    -fx-padding: 1 0;
+}
+
+/* ---- Settings Button (Menu) ---- */
+.settings-btn {
+    -fx-background-color: #1a5276;
+    -fx-text-fill: #4ecca3;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 32;
+    -fx-border-color: #4ecca3;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+.settings-btn:hover {
+    -fx-background-color: #2471a3;
+    -fx-text-fill: white;
 }

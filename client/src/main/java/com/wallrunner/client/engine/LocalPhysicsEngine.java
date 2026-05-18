@@ -4,9 +4,9 @@ import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.physics.GamePhysics;
 
 /**
- * 【模块】client / engine
- * 【代号】Y
- * 【职责】本地权威物理引擎封装。
+ * 本地权威物理引擎封装。
+ *
+ * 职责：委托给共享核心物理引擎，保持客户端与服务端逻辑一致。
  */
 public class LocalPhysicsEngine {
 

@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>com.wallrunner</groupId>
-        <artifactId>wall-runner-java</artifactId>
+        <artifactId>wall-runner</artifactId>
         <version>2.0.0</version>
     </parent>
 
     <artifactId>shared-core</artifactId>
-    <packaging>jar</packaging>
-
     <name>WallRunner Shared Core</name>
-    <description>Y-layer: entities, constants, physics engine</description>
+    <description>零框架依赖的共享核心：实体、常量、物理引擎</description>
 
     <dependencies>
-        <!-- Zero framework dependencies; pure Java 21 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
     </dependencies>
 </project>

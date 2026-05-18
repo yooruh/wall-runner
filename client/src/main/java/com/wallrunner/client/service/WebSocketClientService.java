@@ -16,19 +16,13 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
 /**
- * 【模块】client / service
- * 【代号】Z
- * 【职责】WebSocket 客户端。与原始网页版 websocket.js 严格对齐。
- * 【协议】支持原版消息类型：mode_select, mode_confirmed, room_created, joined_room,
- *        player_joined, player_left, room_closed, error, state, input。
- * 【原则】单例模式，网络 I/O 与业务逻辑解耦，通过回调通知上层。
- * 【修复】2026-05-10:
- *       1. WebSocket 文本消息分片处理：HttpClient.WebSocket 对大 JSON 会拆分为多帧，
- *          使用 StringBuilder 累积分片，等 last=true 时再完整解析。
- *       2. clientId 改为纯内存 UUID（移除 Preferences 持久化），
- *          同一台机器开多个窗口时各自拥有独立 ID，避免控制同一角色。
- *       3. ObjectMapper 配置 FAIL_ON_UNKNOWN_PROPERTIES = false，增强兼容性。
- *       4. state 消息 payload 兼容 String（Relay）和 Map（Dedicated）两种格式。
+ * WebSocket 客户端。
+ *
+ * 职责：
+ * - 与服务器建立 WebSocket 连接。
+ * - 处理消息分片（HttpClient.WebSocket 对大 JSON 拆分为多帧）。
+ * - 心跳机制（每5秒 ping）。
+ * - 单例模式，网络 I/O 与业务逻辑解耦。
  */
 public class WebSocketClientService {
 
@@ -52,25 +46,31 @@ public class WebSocketClientService {
     private String myId;
     private double timeBonusInterval = 5.0;
     private int timeBonusPoints = 10;
-    // 【新增】自定义角色颜色
     private String fillColor = "";
     private String strokeColor = "";
-    // 【新增】心跳定时器
     private java.util.Timer heartbeatTimer;
 
-    // 【修复】纯内存 clientId，每个进程独立，多窗口不冲突
+    // 【跨设备联机】服务器地址配置，默认 localhost，可改为局域网 IP
+    private String serverAddress = "localhost";
+    private int serverPort = 8080;
+
+    // 纯内存 clientId，每个进程独立
     private final String clientId = UUID.randomUUID().toString();
 
     // 回调
     private Consumer<GameState> onStateReceived;
     private Consumer<Map<String, Object>> onMessage;
-
-    // 消息缓存：当 onMessage 尚未设置时，缓存非 state 消息
     private final List<Map<String, Object>> pendingMessages = new ArrayList<>();
 
     private WebSocketClientService() {}
 
     public String getClientId() { return clientId; }
+
+    private Consumer<String> onConnectionError;
+
+    public void setOnConnectionError(Consumer<String> callback) {
+        this.onConnectionError = callback;
+    }
 
     public boolean connect(String uri) {
         try {
@@ -84,6 +84,10 @@ public class WebSocketClientService {
         } catch (Exception e) {
             System.err.println("[WS Client] Connect failed: " + e.getMessage());
             connected = false;
+            // 触发连接错误回调，通知UI显示错误
+            if (onConnectionError != null) {
+                onConnectionError.accept("无法连接到服务器 " + uri + "，请检查地址是否正确或服务器是否运行。");
+            }
             return false;
         }
     }
@@ -101,9 +105,22 @@ public class WebSocketClientService {
         pendingMessages.clear();
     }
 
+    /**
+     * 加载本地保存的颜色设置
+     */
+    public void loadSavedColors() {
+        java.util.prefs.Preferences prefs = java.util.prefs.Preferences.userNodeForPackage(com.wallrunner.client.controller.SettingsController.class);
+        boolean autoColor = prefs.getBoolean("auto_color", true);
+        if (!autoColor) {
+            String fill = prefs.get("fill_color", "");
+            String stroke = prefs.get("stroke_color", "");
+            if (fill != null && !fill.isEmpty()) this.fillColor = fill;
+            if (stroke != null && !stroke.isEmpty()) this.strokeColor = stroke;
+        }
+    }
+
     public boolean isConnected() { return connected; }
 
-    // 协议：mode_select
     public void joinDedicated(String name) {
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "mode_select");
@@ -171,6 +188,32 @@ public class WebSocketClientService {
         send(msg);
     }
 
+    /**
+     * 回复服务器 ping
+     */
+    public void sendPong() {
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "pong");
+        msg.put("playerId", myId != null ? myId : clientId);
+        msg.put("roomId", currentRoomId);
+        msg.put("timestamp", System.currentTimeMillis());
+        send(msg);
+    }
+
+    /**
+     * 客户端主动断开（返回主菜单时调用）
+     */
+    public void sendDisconnect() {
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "disconnect");
+        msg.put("playerId", myId != null ? myId : clientId);
+        msg.put("roomId", currentRoomId);
+        msg.put("timestamp", System.currentTimeMillis());
+        send(msg);
+        // 本地断开连接
+        disconnect();
+    }
+
     public void sendState(GameState state) {
         try {
             String json = mapper.writeValueAsString(state);
@@ -227,6 +270,19 @@ public class WebSocketClientService {
     public String getStrokeColor() { return strokeColor; }
     public void setStrokeColor(String v) { this.strokeColor = v != null ? v : ""; }
 
+    public String getServerAddress() { return serverAddress; }
+    public void setServerAddress(String v) { this.serverAddress = v != null && !v.isEmpty() ? v : "localhost"; }
+
+    public int getServerPort() { return serverPort; }
+    public void setServerPort(int v) { this.serverPort = v > 0 && v < 65536 ? v : 8080; }
+
+    /**
+     * 获取完整的 WebSocket 连接 URL
+     */
+    public String getServerUrl() {
+        return "ws://" + serverAddress + ":" + serverPort + "/ws/game";
+    }
+
     private void startHeartbeat() {
         stopHeartbeat();
         heartbeatTimer = new java.util.Timer("ws-heartbeat", true);
@@ -242,7 +298,7 @@ public class WebSocketClientService {
                     }
                 }
             }
-        }, 5000, 5000); // 每5秒发送一次心跳
+        }, 5000, 5000);
     }
 
     private void stopHeartbeat() {
@@ -253,7 +309,6 @@ public class WebSocketClientService {
     }
 
     private class WsListener implements WebSocket.Listener {
-        // 【关键修复】累积分片消息，处理大 JSON 被拆分为多帧的情况
         private final StringBuilder textBuffer = new StringBuilder();
 
         @Override
@@ -266,10 +321,29 @@ public class WebSocketClientService {
             textBuffer.append(data);
             if (last) {
                 String fullMessage = textBuffer.toString();
-                textBuffer.setLength(0); // 清空缓冲区
+                textBuffer.setLength(0);
                 handleMessage(fullMessage);
             }
             webSocket.request(1);
+            return null;
+        }
+
+        @Override
+        public void onError(WebSocket webSocket, Throwable error) {
+            System.err.println("[WS Client] WebSocket Error: " + error.getMessage());
+            connected = false;
+            if (onConnectionError != null) {
+                onConnectionError.accept("连接错误: " + error.getMessage());
+            }
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            System.out.println("[WS Client] Connection closed: " + statusCode + " " + reason);
+            connected = false;
+            if (onConnectionError != null && statusCode != WebSocket.NORMAL_CLOSURE) {
+                onConnectionError.accept("连接已断开 (" + statusCode + "): " + reason);
+            }
             return null;
         }
 
@@ -278,7 +352,6 @@ public class WebSocketClientService {
                 Map<String, Object> msg = mapper.readValue(fullMessage, Map.class);
                 String type = (String) msg.get("type");
 
-                // 先提取关键状态，即使回调尚未设置也不丢失
                 if ("room_created".equals(type)) {
                     String roomId = (String) msg.get("roomId");
                     if (roomId != null) {
@@ -297,7 +370,10 @@ public class WebSocketClientService {
                     else myId = clientId;
                 }
 
-                if ("state".equals(type) && onStateReceived != null) {
+                if ("ping".equals(type)) {
+                    // 收到服务器 ping，立即回复 pong
+                    sendPong();
+                } else if ("state".equals(type) && onStateReceived != null) {
                     Object payload = msg.get("payload");
                     String payloadJson;
                     if (payload instanceof String) {
@@ -319,21 +395,8 @@ public class WebSocketClientService {
                 }
             } catch (Exception e) {
                 System.err.println("[WS Client] Parse error: " + e.getMessage());
-                // 【调试】打印前 200 字符帮助定位问题
                 System.err.println("[WS Client] Raw: " + fullMessage.substring(0, Math.min(200, fullMessage.length())));
             }
-        }
-
-        @Override
-        public void onError(WebSocket webSocket, Throwable error) {
-            System.err.println("[WS Client] Error: " + error.getMessage());
-            connected = false;
-        }
-
-        @Override
-        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            connected = false;
-            return null;
         }
     }
 }

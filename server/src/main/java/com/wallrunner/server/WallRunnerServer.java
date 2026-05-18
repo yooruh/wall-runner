@@ -5,11 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * 【模块】server
- * 【代号】X + Y
- * 【职责】Spring Boot 应用入口，扫描 com.wallrunner 下所有组件。
- * 【原则】仅作启动器，不含业务逻辑。
- * 【修复】2026-05-10: 添加 @EnableScheduling，启用 DedicatedService 的 @Scheduled tick。
+ * Spring Boot 应用入口。
+ *
+ * 职责：仅作启动器，不含业务逻辑。
  */
 @EnableScheduling
 @SpringBootApplication(scanBasePackages = {"com.wallrunner"})

@@ -9,10 +9,9 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 /**
- * 【模块】server / config
- * 【代号】X
- * 【职责】注册 WebSocket 端点、配置拦截器、设置线程策略。
- * 【原则】基础设施配置，不侵入业务逻辑。
+ * WebSocket 端点配置。
+ *
+ * 职责：注册端点、配置拦截器、设置线程策略。
  */
 @Configuration
 @EnableWebSocket
