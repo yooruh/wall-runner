@@ -1,14 +1,15 @@
 package com.wallrunner.server.service;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wallrunner.shared.entity.GameState;
-import com.wallrunner.shared.entity.Player;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.util.Map;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wallrunner.shared.entity.GameState;
+import com.wallrunner.shared.entity.Player;
 
 /**
  * P2P 转发模式（Relay）：服务端仅做消息中继，不运行物理。
@@ -54,6 +55,7 @@ public class RelayService {
         return ok;
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     public void notifyHost(String roomId, Map<String, Object> msg) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;
@@ -69,6 +71,7 @@ public class RelayService {
         }
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     public void broadcastFromHost(String roomId, Map<String, Object> msg, WebSocketSession sender) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;
@@ -87,6 +90,7 @@ public class RelayService {
         }
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     public void broadcastToRoom(String roomId, Map<String, Object> msg, String excludeSessionId) {
         try {
             String json = objectMapper.writeValueAsString(msg);
@@ -101,6 +105,7 @@ public class RelayService {
         }
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     public void relayInput(String roomId, Map<String, Object> msg, WebSocketSession sender) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;

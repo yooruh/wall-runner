@@ -1,14 +1,54 @@
 package com.wallrunner.shared.physics;
 
-import com.wallrunner.shared.constants.GameConstants;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+import static com.wallrunner.shared.constants.GameConstants.CAMERA_OFFSET_RATIO;
+import static com.wallrunner.shared.constants.GameConstants.CAMERA_SMOOTH;
+import static com.wallrunner.shared.constants.GameConstants.CANVAS_HEIGHT;
+import static com.wallrunner.shared.constants.GameConstants.CANVAS_WIDTH;
+import static com.wallrunner.shared.constants.GameConstants.CLIMB_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_A;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_B;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_C;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_INVINCIBLE_DURATION;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_MATCH_COUNT;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SIZE;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SPAWN_INTERVAL;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SPEED_DURATION;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SPEED_MULTIPLIER;
+import static com.wallrunner.shared.constants.GameConstants.DEATH_LINE_OFFSET;
+import static com.wallrunner.shared.constants.GameConstants.DIFFICULTY_MAX_LEVEL;
+import static com.wallrunner.shared.constants.GameConstants.GRAVITY;
+import static com.wallrunner.shared.constants.GameConstants.JUMP_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.JUMP_VY;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_DURATION;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_GRAVITY;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_PUSH_X;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_RETURN_DELAY;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_RETURN_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_ROTATION;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_ROTATION_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_VY;
+import static com.wallrunner.shared.constants.GameConstants.MAX_LIVES;
+import static com.wallrunner.shared.constants.GameConstants.OBSTACLE_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.PLAYER_SIZE;
+import static com.wallrunner.shared.constants.GameConstants.SAFE_LEFT;
+import static com.wallrunner.shared.constants.GameConstants.SAFE_RIGHT;
+import static com.wallrunner.shared.constants.GameConstants.SPAWN_AHEAD;
+import static com.wallrunner.shared.constants.GameConstants.SPAWN_MAX_GAP;
+import static com.wallrunner.shared.constants.GameConstants.SPAWN_MIN_GAP;
+import static com.wallrunner.shared.constants.GameConstants.SPIKE_HEIGHT;
+import static com.wallrunner.shared.constants.GameConstants.SPIKE_WIDTH;
+import static com.wallrunner.shared.constants.GameConstants.WALL_WIDTH;
 import com.wallrunner.shared.entity.Collectible;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Obstacle;
 import com.wallrunner.shared.entity.Player;
-
-import java.util.*;
-
-import static com.wallrunner.shared.constants.GameConstants.*;
 
 /**
  * 游戏核心物理引擎。
@@ -241,18 +281,18 @@ public class GamePhysics {
 
             // 设置收集时触发的特效标识
             switch (type) {
-                case COLLECTIBLE_A:
+                case COLLECTIBLE_A -> {
                     c.setEffectOnCollect("rainbow_sparkle");
                     c.setValue(15);
-                    break;
-                case COLLECTIBLE_B:
+                }
+                case COLLECTIBLE_B -> {
                     c.setEffectOnCollect("wind_particle");
                     c.setValue(15);
-                    break;
-                case COLLECTIBLE_C:
+                }
+                case COLLECTIBLE_C -> {
                     c.setEffectOnCollect("life_up");
                     c.setValue(20);
-                    break;
+                }
             }
 
             state.getCollectibles().add(c);
@@ -279,27 +319,27 @@ public class GamePhysics {
 
     private static void activateCollectibleSkill(Player p, String type) {
         switch (type) {
-            case COLLECTIBLE_A:
+            case COLLECTIBLE_A -> {
                 // 无敌10秒（彩虹闪烁特效）
                 p.setInvincible(true);
                 p.setInvincibleTimer(COLLECTIBLE_INVINCIBLE_DURATION);
                 p.setActivePowerUp(COLLECTIBLE_A);
                 p.setPowerUpTimer(COLLECTIBLE_INVINCIBLE_DURATION);
                 p.getEffects().add("rainbow_sparkle");
-                break;
-            case COLLECTIBLE_B:
+            }
+            case COLLECTIBLE_B -> {
                 // 加速飞行10秒（吹风粒子特效）
                 p.setActivePowerUp(COLLECTIBLE_B);
                 p.setPowerUpTimer(COLLECTIBLE_SPEED_DURATION);
                 p.getEffects().add("wind_particle");
-                break;
-            case COLLECTIBLE_C:
+            }
+            case COLLECTIBLE_C -> {
                 // 加一条命（满命不加）
                 if (p.getLives() < MAX_LIVES) {
                     p.setLives(p.getLives() + 1);
                 }
                 p.getEffects().add("life_up_flash");
-                break;
+            }
         }
     }
 

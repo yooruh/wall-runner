@@ -1,5 +1,6 @@
 package com.wallrunner.client.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallrunner.shared.entity.GameState;
@@ -348,7 +349,7 @@ public class WebSocketClientService {
 
         private void handleMessage(String fullMessage) {
             try {
-                Map<String, Object> msg = mapper.readValue(fullMessage, Map.class);
+                Map<String, Object> msg = mapper.readValue(fullMessage, new TypeReference<>() {});
                 String type = (String) msg.get("type");
 
                 if ("room_created".equals(type)) {

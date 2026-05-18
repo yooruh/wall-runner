@@ -1,12 +1,12 @@
 package com.wallrunner.server.config;
 
-import com.wallrunner.server.handler.GameWebSocketHandler;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
+
+import com.wallrunner.server.handler.GameWebSocketHandler;
 
 /**
  * WebSocket 端点配置。

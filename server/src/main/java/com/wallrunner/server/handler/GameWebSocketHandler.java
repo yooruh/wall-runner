@@ -1,5 +1,16 @@
 package com.wallrunner.server.handler;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallrunner.server.service.DedicatedService;
@@ -9,13 +20,6 @@ import com.wallrunner.server.service.SessionManager;
 import com.wallrunner.shared.constants.GameConstants;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
-import org.springframework.stereotype.Component;
-import org.springframework.web.socket.CloseStatus;
-import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
-
-import java.util.*;
 
 /**
  * WebSocket 消息总线入口。
@@ -60,9 +64,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
+    @SuppressWarnings("UseSpecificCatch")
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
-            Map<String, Object> msg = objectMapper.readValue(message.getPayload(), Map.class);
+            Map<String, Object> msg = objectMapper.readValue(message.getPayload(), new TypeReference<>() {});
             route(session, msg);
         } catch (Exception e) {
             System.err.println("[WS] Parse error from " + session.getId() + ": " + e.getMessage());
@@ -72,18 +77,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private void route(WebSocketSession session, Map<String, Object> msg) {
         String type = (String) msg.get("type");
-        if ("mode_select".equals(type)) {
-            handleModeSelect(session, msg);
-        } else if ("input".equals(type)) {
-            handleInput(session, msg);
-        } else if ("state".equals(type)) {
-            handleStateForward(session, msg);
-        } else if ("ping".equals(type)) {
-            handlePing(session, msg);
-        } else if ("pong".equals(type)) {
-            handlePong(session, msg);
-        } else if ("disconnect".equals(type)) {
-            handleClientDisconnect(session, msg);
+        if (null != type) switch (type) {
+            case "mode_select" -> handleModeSelect(session, msg);
+            case "input" -> handleInput(session, msg);
+            case "state" -> handleStateForward(session, msg);
+            case "ping" -> handlePing(session, msg);
+            case "pong" -> handlePong(session, msg);
+            case "disconnect" -> handleClientDisconnect(session, msg);
+            default -> {
+            }
         }
     }
 
@@ -106,7 +108,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             player.setFillColor(clientFill);
             player.setStrokeColor(clientStroke);
         } else {
-            assignUniqueColor(player, roomId, mode, role);
+            assignUniqueColor(player, roomId);
         }
 
         if ("dedicated".equals(mode)) {
@@ -183,6 +185,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     private void handlePing(WebSocketSession session, Map<String, Object> msg) {
         String clientId = (String) msg.get("clientId");
         String roomId = sessionManager.getRoomId(session.getId());
@@ -201,7 +204,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         } catch (Exception ignored) {}
     }
 
-    private void assignUniqueColor(Player player, String roomId, String mode, String role) {
+    private void assignUniqueColor(Player player, String roomId) {
         Set<String> usedColors = new HashSet<>();
         if (roomId != null && roomManager.isRoomExists(roomId)) {
             GameState state = roomManager.getRoom(roomId);
@@ -224,6 +227,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         player.setStrokeColor(GameConstants.PLAYER_COLOR_PAIRS[idx][1]);
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     private void reply(WebSocketSession session, Map<String, Object> msg) {
         try {
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(msg)));
@@ -271,6 +275,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    @SuppressWarnings("UseSpecificCatch")
     private void broadcastToRoom(String roomId, Map<String, Object> msg, String excludeSessionId) {
         try {
             String json = objectMapper.writeValueAsString(msg);

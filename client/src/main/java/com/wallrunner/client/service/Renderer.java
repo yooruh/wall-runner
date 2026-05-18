@@ -367,7 +367,6 @@ public class Renderer {
                 gc.setLineWidth(2);
                 gc.strokeOval(p.getX() - 3, sy - 3, p.getWidth() + 6, p.getHeight() + 6);
                 // 风粒子拖尾
-                String windSide = "left".equals(p.getSide()) ? "right" : "left";
                 for (int wi = 0; wi < 4; wi++) {
                     double windX = "left".equals(p.getSide()) 
                             ? p.getX() + p.getWidth() + 5 + wi * 8 
@@ -486,15 +485,15 @@ public class Renderer {
 
         // 绘制上方指示器（领先玩家）
         if (!above.isEmpty()) {
-            drawIndicatorBubble(above, myY, true, cameraY);
+            drawIndicatorBubble(above, myY, true);
         }
         // 绘制下方指示器（落后玩家）
         if (!below.isEmpty()) {
-            drawIndicatorBubble(below, myY, false, cameraY);
+            drawIndicatorBubble(below, myY, false);
         }
     }
 
-    private void drawIndicatorBubble(List<Player> players, double myY, boolean isAbove, double cameraY) {
+    private void drawIndicatorBubble(List<Player> players, double myY, boolean isAbove) {
         gc.save();
         gc.setFont(Font.font("Segoe UI Emoji", 10));
 
