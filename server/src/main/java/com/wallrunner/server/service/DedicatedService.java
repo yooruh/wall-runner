@@ -17,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 【代号】X + Y
  * 【职责】公共服务器模式（Dedicated）：服务端运行权威物理，向所有客户端广播 STATE。
  * 【原则】物理计算委托给 GamePhysics（Y层），本类仅做调度与网络 I/O（X层）。
+ * 【修复】2026-05-08: getOrCreateRoom() 使用 RoomManager.createRoom(roomId, hostSessionId)
+ *        确保房间 ID 在 RoomManager 中真实存在，避免 getRoom(roomId) 返回 null 导致 NPE。
  */
 @Service
 public class DedicatedService {
@@ -35,8 +37,11 @@ public class DedicatedService {
     public synchronized String getOrCreateRoom() {
         roomCounter++;
         String roomId = "DEDICATED-" + roomCounter;
-        roomManager.createRoom("SERVER");
-        roomManager.getRoom(roomId).setPhase("menu");
+        roomManager.createRoom(roomId, "SERVER");
+        GameState state = roomManager.getRoom(roomId);
+        if (state != null) {
+            state.setPhase("menu");
+        }
         activeDedicated.put(roomId, false);
         return roomId;
     }

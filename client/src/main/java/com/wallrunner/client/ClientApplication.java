@@ -17,8 +17,8 @@ import javafx.stage.Stage;
  *          并在 Scene 设置到 Stage 后调用 controller.onSceneReady(scene)，
  *          避免 GameController.initialize() 中 gameCanvas.getScene() 为 null 导致 NPE。
  *       2. 移除 setResizable(false)，允许用户调整窗口大小。
- *       3. 统一窗口初始尺寸为 640×720，切换场景时保持窗口大小不变，
- *          解决菜单/游戏/设置窗口忽大忽小问题。
+ *       3. 切换场景时使用 Scene 自身的宽高（而非 Stage 含装饰的宽高），
+ *          解决反复切换导致窗口越来越大的问题。
  *       4. 添加 F11 全屏切换快捷键。
  */
 public class ClientApplication extends Application {
@@ -43,9 +43,16 @@ public class ClientApplication extends Application {
             FXMLLoader loader = new FXMLLoader(ClientApplication.class.getResource(fxmlPath));
             Parent root = loader.load();
 
-            // 保持当前窗口大小；若尚未初始化则使用默认值
-            double w = primaryStage.getScene() != null ? primaryStage.getWidth() : DEFAULT_WIDTH;
-            double h = primaryStage.getScene() != null ? primaryStage.getHeight() : DEFAULT_HEIGHT;
+            // 【修复】使用旧 Scene 的内容尺寸，而非 Stage 含装饰的尺寸，防止窗口越切越大
+            double w, h;
+            Scene oldScene = primaryStage.getScene();
+            if (oldScene != null) {
+                w = oldScene.getWidth();
+                h = oldScene.getHeight();
+            } else {
+                w = DEFAULT_WIDTH;
+                h = DEFAULT_HEIGHT;
+            }
             Scene scene = new Scene(root, w, h);
             scene.getStylesheets().add(ClientApplication.class.getResource(
                     "/com/wallrunner/client/css/client-theme.css").toExternalForm());
@@ -60,7 +67,7 @@ public class ClientApplication extends Application {
             primaryStage.setScene(scene);
 
             // 如果这是第一次设置场景，显式设置窗口大小
-            if (primaryStage.getWidth() < 100 || primaryStage.getHeight() < 100) {
+            if (oldScene == null) {
                 primaryStage.setWidth(DEFAULT_WIDTH);
                 primaryStage.setHeight(DEFAULT_HEIGHT);
             }

@@ -14,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 【代号】X + Y
  * 【职责】房间生命周期管理。每个房间持有独立 GameState（Y层）。
  * 【原则】Z轴数据分区：roomId 为分片键，房间之间零共享状态。
+ * 【修复】2026-05-08: 新增 createRoom(String roomId, String hostSessionId)，
+ *        支持公共服务器使用自定义房间 ID，避免 getOrCreateRoom() 中 roomId 不匹配导致 NPE。
  */
 @Service
 public class RoomManager {
@@ -23,6 +25,10 @@ public class RoomManager {
 
     public String createRoom(String hostSessionId) {
         String roomId = String.format("%06d", random.nextInt(1000000));
+        return createRoom(roomId, hostSessionId);
+    }
+
+    public String createRoom(String roomId, String hostSessionId) {
         GameState state = new GameState();
         state.setPhase("lobby");
         rooms.put(roomId, state);

@@ -248,7 +248,7 @@ public class Renderer {
 
         for (int i = 0; i < GameConstants.MAX_LIVES; i++) {
             gc.setFill(Color.web(me.getLives() > i ? "#e94560" : "#444444"));
-            drawHeart(15 + i * 20, 58, 12);
+            drawHeart(14 + i * 28, 64, 20);
         }
     }
 
