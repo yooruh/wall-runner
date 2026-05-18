@@ -12,11 +12,15 @@ package com.wallrunner.shared.entity;
  *       1. 添加 invincible / invincibleTimer：玩家碰撞后的闪烁无敌状态。
  *       2. 添加 fillColor / strokeColor：自定义角色颜色（填充+描边）。
  *       3. 添加 rotationAngle / knockedBack / knockbackTimer：被撞后旋转动画与击退状态。
+ * 【修复】2026-05-12:
+ *       1. 添加 highScore：历史最高分，死亡后重开保留。
+ *       2. 添加 spectator：旁观模式标记。
+ *       3. 添加 lastPingTime：最后心跳时间戳（服务器用于掉线检测）。
+ *       4. 添加 returningToWall：击退后是否正在回归墙壁。
  */
 public class Player {
     private String id;
     private String name = "玩家";
-    // 【重构】color 字段保留用于向后兼容，实际使用 fillColor + strokeColor
     private String color = "#4ecca3";
     private String fillColor = "#4ecca3";
     private String strokeColor = "#3db892";
@@ -37,14 +41,17 @@ public class Player {
     private double joinOffsetY = 0;
     private int timeBonusScore = 0;
     private boolean disconnected = false;
-    // 闪烁无敌状态：被撞击后 3 秒内免碰撞
     private boolean invincible = false;
     private double invincibleTimer = 0.0;
-    // 【新增】被撞后旋转动画与击退状态
-    private double rotationAngle = 0.0;      // 当前旋转角度（度）
-    private boolean knockedBack = false;     // 是否在被击退中
-    private double knockbackTimer = 0.0;     // 击退倒计时
-    private double targetRotation = 0.0;     // 目标旋转角度
+    private double rotationAngle = 0.0;
+    private boolean knockedBack = false;
+    private double knockbackTimer = 0.0;
+    private double targetRotation = 0.0;
+    // 【新增】2026-05-12
+    private int highScore = 0;
+    private boolean spectator = false;
+    private long lastPingTime = 0;
+    private boolean returningToWall = false;
 
     public Player() {}
 
@@ -109,4 +116,12 @@ public class Player {
     public void setKnockbackTimer(double knockbackTimer) { this.knockbackTimer = knockbackTimer; }
     public double getTargetRotation() { return targetRotation; }
     public void setTargetRotation(double targetRotation) { this.targetRotation = targetRotation; }
+    public int getHighScore() { return highScore; }
+    public void setHighScore(int highScore) { this.highScore = highScore; }
+    public boolean isSpectator() { return spectator; }
+    public void setSpectator(boolean spectator) { this.spectator = spectator; }
+    public long getLastPingTime() { return lastPingTime; }
+    public void setLastPingTime(long lastPingTime) { this.lastPingTime = lastPingTime; }
+    public boolean isReturningToWall() { return returningToWall; }
+    public void setReturningToWall(boolean returningToWall) { this.returningToWall = returningToWall; }
 }

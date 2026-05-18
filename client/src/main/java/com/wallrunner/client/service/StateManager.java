@@ -104,16 +104,20 @@ public class StateManager {
     private void smoothCorrect(Player local, Player auth) {
         double dx = Math.abs(auth.getX() - local.getX());
         double dy = Math.abs(auth.getY() - local.getY());
+        // 【优化】差异小时(<2px)完全信任本地物理，避免网络校正导致卡顿感
         if (dx > 5 || dy > 5) {
+            // 差异大：直接同步（位置跳变）
             local.setX(auth.getX());
             local.setY(auth.getY());
             local.setVy(auth.getVy());
             local.setSide(auth.getSide());
             local.setJumping(auth.isJumping());
-        } else {
-            local.setX(local.getX() + (auth.getX() - local.getX()) * 0.3);
-            local.setY(local.getY() + (auth.getY() - local.getY()) * 0.3);
+        } else if (dx > 0.5 || dy > 0.5) {
+            // 差异中等：轻微插值校正
+            local.setX(local.getX() + (auth.getX() - local.getX()) * 0.15);
+            local.setY(local.getY() + (auth.getY() - local.getY()) * 0.15);
         }
+        // 差异很小(<0.5px)：不做任何校正，完全信任本地物理
         local.setScore(auth.getScore());
         local.setLives(auth.getLives());
         local.setActive(auth.isActive());
@@ -132,6 +136,10 @@ public class StateManager {
         local.setKnockedBack(auth.isKnockedBack());
         local.setKnockbackTimer(auth.getKnockbackTimer());
         local.setTargetRotation(auth.getTargetRotation());
+        local.setHighScore(auth.getHighScore());
+        local.setSpectator(auth.isSpectator());
+        local.setLastPingTime(auth.getLastPingTime());
+        local.setReturningToWall(auth.isReturningToWall());
     }
 
     /** 完全复制玩家属性 */
@@ -159,6 +167,10 @@ public class StateManager {
         target.setKnockedBack(source.isKnockedBack());
         target.setKnockbackTimer(source.getKnockbackTimer());
         target.setTargetRotation(source.getTargetRotation());
+        target.setHighScore(source.getHighScore());
+        target.setSpectator(source.isSpectator());
+        target.setLastPingTime(source.getLastPingTime());
+        target.setReturningToWall(source.isReturningToWall());
     }
 
     /** 深拷贝玩家 */

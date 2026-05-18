@@ -78,7 +78,8 @@ public class GameController {
     private boolean initialized = false;
     private boolean settingsLoaded = false;
     private String modeStr = "single";
-    private int hostBroadcastCounter = 0; // P2P房主广播计数器
+    // P2P房主每帧广播，无需计数器
+    private String spectatorTargetId = null; // 旁观模式当前跟随的玩家ID
 
     // ===== 身份查询 =====
 
@@ -92,6 +93,10 @@ public class GameController {
     private boolean isOffline()  { return currentMode == Mode.SINGLE; }
 
     // ===== 生命周期 =====
+
+    // 【新增】动态UI元素
+    private javafx.scene.control.Button respawnBtn;
+    private javafx.scene.control.Label deathHintLabel;
 
     @FXML
     private void initialize() {
@@ -129,6 +134,35 @@ public class GameController {
         initConnStatus();
         initRoomDisplay();
         initLeaderboard();
+
+        // 【新增】初始化死亡覆盖层UI
+        initDeathOverlay();
+    }
+
+    /** 【新增】初始化死亡覆盖层：重生按钮 + 旁观提示 */
+    private void initDeathOverlay() {
+        if (gameOverOverlay == null) return;
+
+        respawnBtn = new javafx.scene.control.Button("立即重生");
+        respawnBtn.setStyle("-fx-background-color: #4ecca3; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 8 24;");
+        respawnBtn.setOnAction(e -> onRestart());
+        respawnBtn.setVisible(false);
+        respawnBtn.setManaged(false);
+
+        deathHintLabel = new javafx.scene.control.Label("按跳跃键切换旁观视角");
+        deathHintLabel.setStyle("-fx-text-fill: #aaa; -fx-font-size: 12px;");
+        deathHintLabel.setVisible(false);
+        deathHintLabel.setManaged(false);
+
+        // 插入到 gameOverOverlay 中（在 finalScoreLabel 之后）
+        int insertIdx = gameOverOverlay.getChildren().indexOf(finalScoreLabel) + 1;
+        if (insertIdx > 0 && insertIdx <= gameOverOverlay.getChildren().size()) {
+            gameOverOverlay.getChildren().add(insertIdx, respawnBtn);
+            gameOverOverlay.getChildren().add(insertIdx + 1, deathHintLabel);
+        } else {
+            gameOverOverlay.getChildren().add(respawnBtn);
+            gameOverOverlay.getChildren().add(deathHintLabel);
+        }
     }
 
     public void onSceneReady(Scene scene) {
@@ -154,13 +188,9 @@ public class GameController {
         // 网络状态仅用于校正（见 onState），不阻塞渲染。
         physics.tick(state);
 
-        // P2P房主：定期广播权威状态（每3帧一次，约50ms，平衡同步与带宽）
+        // P2P房主：每帧广播权威状态（与客户端同频120fps）
         if (isHost()) {
-            hostBroadcastCounter++;
-            if (hostBroadcastCounter >= 3) {
-                hostBroadcastCounter = 0;
-                ws.sendState(state);
-            }
+            ws.sendState(state);
         }
 
         // 渲染必须在JavaFX线程
@@ -169,9 +199,31 @@ public class GameController {
 
     private void renderFrame(GameState state) {
         Player me = state.getPlayers().get(localId());
-        double camY = (me != null && me.getCameraY() != 0) ? me.getCameraY() : state.getCameraY();
+        // 【新增】旁观模式：使用被跟随玩家的摄像机
+        double camY;
+        if (spectatorTargetId != null) {
+            Player target = state.getPlayers().get(spectatorTargetId);
+            camY = (target != null && target.getCameraY() != 0) ? target.getCameraY() : state.getCameraY();
+        } else {
+            camY = (me != null && me.getCameraY() != 0) ? me.getCameraY() : state.getCameraY();
+        }
         renderer.render(state, modeStr, camY, ws.isShowFps(), localId());
         updateLeaderboard(state);
+
+        // 【新增】检测单个玩家死亡（非全局gameover），显示死亡UI
+        if (me != null && !me.isActive() && "playing".equals(state.getPhase())) {
+            showDeathUI(state);
+        } else if (!"gameover".equals(state.getPhase())) {
+            hideDeathUI();
+        }
+
+        // 【新增】旁观模式提示
+        if (spectatorTargetId != null) {
+            Player target = state.getPlayers().get(spectatorTargetId);
+            if (target != null) {
+                showHint("旁观模式: 跟随 " + target.getName() + " (按跳跃切换)");
+            }
+        }
         if ("gameover".equals(state.getPhase())) {
             showGameOver(state);
         }
@@ -202,6 +254,17 @@ public class GameController {
             hideOverlays();
         } else if ("playing".equals(phase)) {
             Player me = state.getPlayers().get(localId());
+            // 【新增】死亡后：跳跃键切换旁观视角，或重开
+            if (me != null && !me.isActive()) {
+                if (spectatorTargetId == null) {
+                    // 首次进入旁观模式
+                    enterSpectatorMode(state);
+                } else {
+                    // 切换到下一位存活玩家
+                    switchSpectatorTarget(state);
+                }
+                return;
+            }
             if (me != null && !me.isPaused()) {
                 if (isOffline() || isHost()) {
                     GamePhysics.handleInput(me, "jump");
@@ -429,6 +492,7 @@ public class GameController {
         loop.stop();
         ws.disconnect();
         sm.reset();
+        spectatorTargetId = null;
         // 【修复】重置静态模式变量，避免返回菜单后旧模式残留影响下次进入
         currentMode = Mode.SINGLE;
         ClientApplication.switchScene("/com/wallrunner/client/view/menu.fxml");
@@ -437,15 +501,47 @@ public class GameController {
     @FXML private void onRestart() {
         gameOverOverlay.setVisible(false);
         gameOverOverlay.setManaged(false);
-        sm.reset();
-        sm.setLocalPlayerId(ws.getClientId());
-        if (isOffline() || isHost()) {
-            sm.initLocalState(ws.getPlayerName());
-            GameState s = sm.getState();
-            s.setPhase("menu");
-            s.setTimeBonusInterval(ws.getTimeBonusInterval());
-            s.setTimeBonusPoints(ws.getTimeBonusPoints());
+        spectatorTargetId = null; // 退出旁观模式
+        GameState state = sm.getState();
+        Player me = state != null ? state.getPlayers().get(localId()) : null;
+        // 【新增】保存最高分
+        if (me != null && me.getScore() > me.getHighScore()) {
+            me.setHighScore(me.getScore());
         }
+        // 【新增】落后30m重生：找到最落后的存活玩家，在其后30m重生
+        double fallbackY = 0;
+        if (state != null) {
+            for (Player p : state.getPlayers().values()) {
+                if (p.isActive() && p.getY() < fallbackY) {
+                    fallbackY = p.getY(); // y越小（越上方）越落后
+                }
+            }
+        }
+        double spawnY = fallbackY + 300; // 落后30m = 300像素
+        if (me != null) {
+            me.setActive(true);
+            me.setLives(GameConstants.MAX_LIVES);
+            me.setScore(0); // 从0开始计分
+            me.setY(spawnY);
+            me.setX("left".equals(me.getSide()) ? GameConstants.WALL_WIDTH + 5 : GameConstants.CANVAS_WIDTH - GameConstants.WALL_WIDTH - GameConstants.PLAYER_SIZE - 5);
+            me.setVy(0);
+            me.setBlocked(false);
+            me.setPaused(false);
+            me.setInvincible(true);
+            me.setInvincibleTimer(2.0); // 重生后2秒无敌
+            me.setSpectator(false);
+            // 【关键修复】重置摄像机到重生位置，避免立刻再次死亡
+            double spawnCamY = spawnY - GameConstants.CANVAS_HEIGHT * GameConstants.CAMERA_OFFSET_RATIO;
+            me.setCameraY(spawnCamY);
+            me.setCameraTargetY(spawnCamY);
+        }
+        // 【关键修复】同步全局摄像机到重生位置
+        if (state != null) {
+            double spawnCamY = spawnY - GameConstants.CANVAS_HEIGHT * GameConstants.CAMERA_OFFSET_RATIO;
+            state.setCameraY(spawnCamY);
+            state.setCameraTargetY(spawnCamY);
+        }
+        hideDeathUI();
         loop.start();
     }
 
@@ -526,19 +622,27 @@ public class GameController {
     private void updateLeaderboard(GameState state) {
         if (lbList == null) return;
         lbList.getChildren().clear();
-        var online = state.getPlayers().values().stream().filter(p -> !p.isDisconnected()).toList();
-        if (isOffline() || online.size() <= 1) {
+        var allPlayers = state.getPlayers().values().stream().toList();
+        if (isOffline() || allPlayers.size() <= 1) {
             if (leaderboard != null) { leaderboard.setVisible(false); leaderboard.setManaged(false); }
             return;
         }
         if (leaderboard != null) { leaderboard.setVisible(true); leaderboard.setManaged(true); }
         String myId = localId();
-        online.stream().sorted((a, b) -> Integer.compare(b.getScore(), a.getScore())).forEach(p -> {
-            String text = p.getName() + ": " + p.getScore() + (p.isPaused() ? " (暂停)" : "");
-            Label lbl = new Label(text);
+        allPlayers.stream().sorted((a, b) -> Integer.compare(b.getScore(), a.getScore())).forEach(p -> {
+            StringBuilder text = new StringBuilder();
+            text.append(p.getName()).append(": ").append(p.getScore());
+            if (p.isPaused()) text.append(" (暂停)");
+            if (p.isDisconnected()) text.append(" [离线]");
+            if (!p.isActive()) text.append(" [死亡]");
+            Label lbl = new Label(text.toString());
             StringBuilder style = new StringBuilder("-fx-text-fill: ").append(p.getColor()).append("; -fx-font-size: 12px;");
             if (p.getId().equals(myId)) style.append(" -fx-font-weight: bold;");
-            if (!p.isActive()) style.append(" -fx-strikethrough: true; -fx-opacity: 0.6;");
+            // 死亡 = 删除线
+            if (!p.isActive()) style.append(" -fx-strikethrough: true;");
+            // 掉线 = 半透明
+            if (p.isDisconnected()) style.append(" -fx-opacity: 0.4;");
+            else if (!p.isActive()) style.append(" -fx-opacity: 0.6;");
             else if (p.isPaused()) style.append(" -fx-opacity: 0.7;");
             lbl.setStyle(style.toString());
             lbList.getChildren().add(lbl);
@@ -548,9 +652,75 @@ public class GameController {
     private void showGameOver(GameState state) {
         loop.stop();
         Player me = state.getPlayers().get(localId());
-        finalScoreLabel.setText("最终得分: " + (me != null ? me.getScore() : 0));
+        int score = me != null ? me.getScore() : 0;
+        int high = me != null ? me.getHighScore() : 0;
+        String text = "最终得分: " + score;
+        if (high > 0) text += " (最高分: " + high + ")";
+        finalScoreLabel.setText(text);
+        // 全局gameover时隐藏重生按钮
+        if (respawnBtn != null) { respawnBtn.setVisible(false); respawnBtn.setManaged(false); }
+        if (deathHintLabel != null) { deathHintLabel.setVisible(false); deathHintLabel.setManaged(false); }
         gameOverOverlay.setVisible(true);
         gameOverOverlay.setManaged(true);
+    }
+
+    /** 【新增】显示单个玩家死亡UI */
+    private void showDeathUI(GameState state) {
+        Player me = state.getPlayers().get(localId());
+        if (me == null) return;
+        int score = me.getScore();
+        int high = me.getHighScore();
+        String text = "你已死亡! 得分: " + score;
+        if (high > 0) text += " (最高: " + high + ")";
+        finalScoreLabel.setText(text);
+        if (respawnBtn != null) { respawnBtn.setVisible(true); respawnBtn.setManaged(true); }
+        if (deathHintLabel != null) { deathHintLabel.setVisible(true); deathHintLabel.setManaged(true); }
+        gameOverOverlay.setVisible(true);
+        gameOverOverlay.setManaged(true);
+    }
+
+    /** 【新增】隐藏死亡UI */
+    private void hideDeathUI() {
+        if (gameOverOverlay != null && gameOverOverlay.isVisible() && !"gameover".equals(sm.getState().getPhase())) {
+            gameOverOverlay.setVisible(false);
+            gameOverOverlay.setManaged(false);
+        }
+        if (respawnBtn != null) { respawnBtn.setVisible(false); respawnBtn.setManaged(false); }
+        if (deathHintLabel != null) { deathHintLabel.setVisible(false); deathHintLabel.setManaged(false); }
+    }
+
+    // 【新增】旁观模式方法
+    private void enterSpectatorMode(GameState state) {
+        // 找到第一个存活的非自己玩家
+        for (Player p : state.getPlayers().values()) {
+            if (p.isActive() && !p.getId().equals(localId())) {
+                spectatorTargetId = p.getId();
+                showHint("进入旁观模式，跟随 " + p.getName());
+                return;
+            }
+        }
+        showHint("无其他存活玩家可旁观");
+    }
+
+    private void switchSpectatorTarget(GameState state) {
+        var activePlayers = state.getPlayers().values().stream()
+                .filter(p -> p.isActive() && !p.getId().equals(localId()))
+                .toList();
+        if (activePlayers.isEmpty()) {
+            showHint("无其他存活玩家");
+            return;
+        }
+        // 循环切换
+        int currentIdx = -1;
+        for (int i = 0; i < activePlayers.size(); i++) {
+            if (activePlayers.get(i).getId().equals(spectatorTargetId)) {
+                currentIdx = i;
+                break;
+            }
+        }
+        int nextIdx = (currentIdx + 1) % activePlayers.size();
+        spectatorTargetId = activePlayers.get(nextIdx).getId();
+        showHint("切换至 " + activePlayers.get(nextIdx).getName());
     }
 
     private boolean isPlaying() {

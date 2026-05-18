@@ -75,12 +75,32 @@ public class GamePhysics {
 
         // 【修复】处理击退+旋转+闪烁状态
         for (Player p : activePlayers) {
-            // 击退阶段：被弹出墙壁，利用重力下落，缓慢旋转
+            // 击退阶段：被弹出墙壁 → 自由飞行下落 → 缓慢回归墙壁
             if (p.isKnockedBack()) {
                 p.setKnockbackTimer(p.getKnockbackTimer() - 0.016);
                 // 击退阶段物理：更大重力快速下落
                 p.setVy(p.getVy() + GameConstants.KNOCKBACK_GRAVITY);
                 p.setY(p.getY() + p.getVy());
+
+                // 【修复】分阶段处理：
+                // 前 1.0 秒：自由飞行，只受重力，不回归墙壁
+                // 后 0.5 秒：开始缓慢回归墙壁
+                if (p.getKnockbackTimer() <= 0.5) {
+                    p.setReturningToWall(true);
+                }
+
+                if (p.isReturningToWall()) {
+                    boolean onLeft = "left".equals(p.getSide());
+                    double targetX = onLeft ? WALL_WIDTH + 5 : CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5;
+                    double dx = targetX - p.getX();
+                    // 【修复】降低回归速度，使用更小的步长
+                    if (Math.abs(dx) > 2.0) {
+                        p.setX(p.getX() + Math.signum(dx) * Math.min(Math.abs(dx) * 0.05, 1.0));
+                    } else {
+                        p.setX(targetX); // 吸附到墙壁
+                    }
+                }
+
                 // 旋转动画：缓慢向目标角度倾斜
                 double currentRot = p.getRotationAngle();
                 double targetRot = p.getTargetRotation();
@@ -88,16 +108,21 @@ public class GamePhysics {
                 if (Math.abs(diff) > 0.5) {
                     p.setRotationAngle(currentRot + Math.signum(diff) * GameConstants.KNOCKBACK_ROTATION_SPEED);
                 }
+                // 击退结束时缓慢恢复角度
+                if (p.getKnockbackTimer() <= 0.3 && Math.abs(p.getRotationAngle()) > 0.5) {
+                    p.setRotationAngle(p.getRotationAngle() * 0.9);
+                }
+
                 // 检查是否回到墙壁（击退结束条件之一）
                 boolean backToWall = ("left".equals(p.getSide()) && p.getX() <= WALL_WIDTH + 5)
                         || ("right".equals(p.getSide()) && p.getX() >= CANVAS_WIDTH - WALL_WIDTH - PLAYER_SIZE - 5);
                 if (backToWall || p.getKnockbackTimer() <= 0) {
                     // 击退结束：恢复正常状态
                     p.setKnockedBack(false);
+                    p.setReturningToWall(false);
                     p.setKnockbackTimer(0);
                     p.setRotationAngle(0);  // 恢复正常角度
                     p.setTargetRotation(0);
-                    // 如果闪烁时间还没结束，继续保持无敌但恢复正常物理
                 }
             }
 
@@ -509,6 +534,7 @@ public class GamePhysics {
 
         // 2. 击退状态：被弹出墙壁
         victim.setKnockedBack(true);
+        victim.setReturningToWall(false);  // 【修复】初始不回归，先自由飞行
         victim.setKnockbackTimer(1.5);     // 击退阶段持续1.5秒
 
         // 3. 物理弹出：向墙壁外侧弹出

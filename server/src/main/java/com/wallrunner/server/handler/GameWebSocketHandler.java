@@ -8,6 +8,7 @@ import com.wallrunner.server.service.RelayService;
 import com.wallrunner.server.service.RoomManager;
 import com.wallrunner.server.service.SessionManager;
 import com.wallrunner.shared.constants.GameConstants;
+import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -81,6 +82,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             handleInput(session, msg);
         } else if ("state".equals(type)) {
             handleStateForward(session, msg);
+        } else if ("ping".equals(type)) {
+            handlePing(session, msg);
         }
     }
 
@@ -219,6 +222,25 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         String roomId = sessionManager.getRoomId(session.getId());
         if (roomId == null || roomId.startsWith("DEDICATED-")) return;
         relayService.broadcastFromHost(roomId, msg, session);
+    }
+
+    private void handlePing(WebSocketSession session, Map<String, Object> msg) {
+        String roomId = sessionManager.getRoomId(session.getId());
+        if (roomId == null) return;
+        String clientId = (String) msg.get("clientId");
+        if (clientId == null) return;
+        GameState state = roomManager.getRoom(roomId);
+        if (state != null) {
+            Player p = state.getPlayers().get(clientId);
+            if (p != null) {
+                p.setLastPingTime(System.currentTimeMillis());
+                p.setDisconnected(false);
+            }
+        }
+        // 回复 pong
+        try {
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(Map.of("type", "pong"))));
+        } catch (Exception ignored) {}
     }
 
     private void reply(WebSocketSession session, Map<String, Object> msg) {

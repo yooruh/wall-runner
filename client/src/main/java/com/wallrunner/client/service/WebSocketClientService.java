@@ -55,6 +55,8 @@ public class WebSocketClientService {
     // 【新增】自定义角色颜色
     private String fillColor = "";
     private String strokeColor = "";
+    // 【新增】心跳定时器
+    private java.util.Timer heartbeatTimer;
 
     // 【修复】纯内存 clientId，每个进程独立，多窗口不冲突
     private final String clientId = UUID.randomUUID().toString();
@@ -77,6 +79,7 @@ public class WebSocketClientService {
                     .join();
             connected = true;
             System.out.println("[WS Client] Connected, clientId=" + clientId);
+            startHeartbeat();
             return true;
         } catch (Exception e) {
             System.err.println("[WS Client] Connect failed: " + e.getMessage());
@@ -86,6 +89,7 @@ public class WebSocketClientService {
     }
 
     public void disconnect() {
+        stopHeartbeat();
         if (webSocket != null) {
             try {
                 webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "client leave");
@@ -222,6 +226,31 @@ public class WebSocketClientService {
     public void setFillColor(String v) { this.fillColor = v != null ? v : ""; }
     public String getStrokeColor() { return strokeColor; }
     public void setStrokeColor(String v) { this.strokeColor = v != null ? v : ""; }
+
+    private void startHeartbeat() {
+        stopHeartbeat();
+        heartbeatTimer = new java.util.Timer("ws-heartbeat", true);
+        heartbeatTimer.scheduleAtFixedRate(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                if (connected && webSocket != null) {
+                    try {
+                        Map<String, Object> ping = Map.of("type", "ping", "clientId", clientId, "timestamp", System.currentTimeMillis());
+                        webSocket.sendText(mapper.writeValueAsString(ping), true);
+                    } catch (Exception e) {
+                        System.err.println("[WS Client] Heartbeat failed: " + e.getMessage());
+                    }
+                }
+            }
+        }, 5000, 5000); // 每5秒发送一次心跳
+    }
+
+    private void stopHeartbeat() {
+        if (heartbeatTimer != null) {
+            heartbeatTimer.cancel();
+            heartbeatTimer = null;
+        }
+    }
 
     private class WsListener implements WebSocket.Listener {
         // 【关键修复】累积分片消息，处理大 JSON 被拆分为多帧的情况

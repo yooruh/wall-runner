@@ -97,7 +97,10 @@ public class DedicatedService {
         }
     }
 
-    @Scheduled(fixedRate = 16)
+    // 【修复】物理计算恢复60fps（16ms），广播降到30fps（每2帧一次），平衡同步与带宽
+    private int broadcastCounter = 0;
+
+    @Scheduled(fixedRate = 8)
     public void tick() {
         for (Map.Entry<String, Boolean> entry : activeDedicated.entrySet()) {
             if (!Boolean.TRUE.equals(entry.getValue())) continue;
@@ -105,7 +108,22 @@ public class DedicatedService {
             GameState state = roomManager.getRoom(roomId);
             if (state == null) continue;
             GamePhysics.update(state);
-            broadcastState(roomId, state);
+            // 【新增】掉线检测：15秒未收到心跳则标记为离线
+            long now = System.currentTimeMillis();
+            for (Player p : state.getPlayers().values()) {
+                if (p.isActive() && !p.isDisconnected() && p.getLastPingTime() > 0) {
+                    if (now - p.getLastPingTime() > 15000) {
+                        p.setDisconnected(true);
+                        System.out.println("[Dedicated] Player " + p.getName() + " marked offline");
+                    }
+                }
+            }
+            // 每2帧广播一次（30fps），减少网络负载但保持60fps物理
+            broadcastCounter++;
+            if (broadcastCounter >= 2) {
+                broadcastCounter = 0;
+                broadcastState(roomId, state);
+            }
             if ("gameover".equals(state.getPhase())) {
                 activeDedicated.put(roomId, false);
             }

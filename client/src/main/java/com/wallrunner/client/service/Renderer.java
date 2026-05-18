@@ -265,7 +265,10 @@ public class Renderer {
             // 名字
             gc.setFill(Color.web(isPaused ? "rgba(255,255,255,0.6)" : "white"));
             gc.setFont(Font.font("Segoe UI Emoji", 11));
-            gc.fillText(p.getName() != null ? p.getName() : "玩家", p.getX() + p.getWidth() / 2, sy - 8);
+            String nameText = p.getName() != null ? p.getName() : "玩家";
+            if (!p.isActive()) nameText += " [死亡]";
+            if (p.isDisconnected()) nameText += " [离线]";
+            gc.fillText(nameText, p.getX() + p.getWidth() / 2, sy - 8);
 
             if (isPaused) {
                 gc.setFill(Color.web("rgba(255,255,255,0.8)"));
@@ -286,7 +289,12 @@ public class Renderer {
         if (me == null) return;
         gc.setFill(Color.web("white"));
         gc.setFont(Font.font("Segoe UI Emoji", 18));
-        gc.fillText("分数: " + me.getScore(), 15, 28);
+        // 【新增】显示最高分
+        String scoreText = "分数: " + me.getScore();
+        if (me.getHighScore() > 0) {
+            scoreText += " (最高: " + me.getHighScore() + ")";
+        }
+        gc.fillText(scoreText, 15, 28);
 
         int heightVal = (int) (-me.getY() / 10);
         String heightText = "高度: " + heightVal;
@@ -299,6 +307,13 @@ public class Renderer {
         for (int i = 0; i < GameConstants.MAX_LIVES; i++) {
             gc.setFill(Color.web(me.getLives() > i ? "#e94560" : "#444444"));
             drawHeart(14 + i * 32, 68, 24);
+        }
+
+        // 【新增】旁观模式提示
+        if (me.isSpectator()) {
+            gc.setFill(Color.web("rgba(255,255,255,0.8)"));
+            gc.setFont(Font.font("Segoe UI Emoji", 14));
+            gc.fillText("[旁观模式] 按跳跃切换视角", GameConstants.CANVAS_WIDTH / 2, GameConstants.CANVAS_HEIGHT - 20);
         }
     }
 
