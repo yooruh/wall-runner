@@ -1,0 +1,74 @@
+package com.wallrunner.server.service;
+
+import com.wallrunner.shared.entity.GameState;
+import com.wallrunner.shared.entity.Player;
+import com.wallrunner.shared.physics.GamePhysics;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * 【模块】server / service
+ * 【代号】X + Y
+ * 【职责】房间生命周期管理。每个房间持有独立 GameState（Y层）。
+ * 【原则】Z轴数据分区：roomId 为分片键，房间之间零共享状态。
+ */
+@Service
+public class RoomManager {
+    private final Map<String, GameState> rooms = new ConcurrentHashMap<>();
+    private final Map<String, String> roomHostMap = new ConcurrentHashMap<>();
+    private final Random random = new Random();
+
+    public String createRoom(String hostSessionId) {
+        String roomId = String.format("%06d", random.nextInt(1000000));
+        GameState state = new GameState();
+        state.setPhase("lobby");
+        rooms.put(roomId, state);
+        roomHostMap.put(roomId, hostSessionId);
+        return roomId;
+    }
+
+    public GameState getRoom(String roomId) {
+        return rooms.get(roomId);
+    }
+
+    public void removeRoom(String roomId) {
+        rooms.remove(roomId);
+        roomHostMap.remove(roomId);
+    }
+
+    public boolean joinRoom(String roomId, Player player) {
+        GameState state = rooms.get(roomId);
+        if (state == null) return false;
+        state.getPlayers().put(player.getId(), player);
+        return true;
+    }
+
+    public void leaveRoom(String roomId, String playerId) {
+        GameState state = rooms.get(roomId);
+        if (state != null) {
+            state.getPlayers().remove(playerId);
+            if (state.getPlayers().isEmpty()) {
+                removeRoom(roomId);
+            }
+        }
+    }
+
+    public String getHost(String roomId) {
+        return roomHostMap.get(roomId);
+    }
+
+    public void startGame(String roomId) {
+        GameState state = rooms.get(roomId);
+        if (state != null) {
+            GamePhysics.initState(state);
+            state.setPhase("playing");
+        }
+    }
+
+    public Map<String, GameState> getAllRooms() {
+        return rooms;
+    }
+}

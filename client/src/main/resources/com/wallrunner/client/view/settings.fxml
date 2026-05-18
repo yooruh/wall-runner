@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox fx:id="settingsRoot" styleClass="settings-overlay" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.wallrunner.client.controller.SettingsController"
+      alignment="CENTER" spacing="0">
+
+    <VBox styleClass="settings-box">
+        <padding><Insets top="25" right="30" bottom="25" left="30"/></padding>
+
+        <Label text="⚙️ 游戏设置" styleClass="settings-title"/>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="14"/></padding>
+            <Label text="玩家名称" styleClass="settings-label"/>
+            <TextField fx:id="nameField" styleClass="settings-input"/>
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="14"/></padding>
+            <Label text="跳跃按键" styleClass="settings-label"/>
+            <ChoiceBox fx:id="jumpKeyChoice" styleClass="settings-choice"/>
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="14"/></padding>
+            <Label text="显示FPS" styleClass="settings-label"/>
+            <CheckBox fx:id="showFpsCheck" styleClass="settings-check"/>
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="14"/></padding>
+            <Label text="音效" styleClass="settings-label"/>
+            <CheckBox fx:id="soundCheck" styleClass="settings-check"/>
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="14"/></padding>
+            <Label text="本地预测" styleClass="settings-label"/>
+            <CheckBox fx:id="predictCheck" styleClass="settings-check"/>
+        </HBox>
+
+        <HBox alignment="CENTER" spacing="10">
+            <padding><Insets top="20"/></padding>
+            <Button text="保存" styleClass="menu-btn, resume" onAction="#onSave"/>
+            <Button text="取消" styleClass="menu-btn, secondary" onAction="#onCancel"/>
+        </HBox>
+    </VBox>
+</VBox>

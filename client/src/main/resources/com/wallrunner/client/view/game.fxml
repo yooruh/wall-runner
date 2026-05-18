@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane fx:id="gameRoot" styleClass="game-root" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.wallrunner.client.controller.GameController">
+
+    <top>
+        <VBox alignment="CENTER" spacing="6">
+            <padding><Insets top="8" right="4" bottom="6" left="4"/></padding>
+            <!-- 工具栏 -->
+            <HBox styleClass="game-toolbar" alignment="CENTER_LEFT" spacing="6">
+                <Button fx:id="btnPause" text="⏸" styleClass="toolbar-btn" onAction="#onTogglePause"/>
+                <Button fx:id="btnSettings" text="⚙️" styleClass="toolbar-btn" onAction="#onOpenSettings"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="toolbarInfo" text="" styleClass="toolbar-info"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnHome" text="🏠" styleClass="toolbar-btn" onAction="#onReturnToMenu"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <center>
+        <StackPane alignment="CENTER">
+            <!-- Canvas 容器 -->
+            <VBox styleClass="game-canvas-container" alignment="CENTER">
+                <Canvas fx:id="gameCanvas" width="400" height="600"/>
+            </VBox>
+
+            <!-- 排行榜：叠加在右上角 -->
+            <VBox fx:id="leaderboard" styleClass="leaderboard" alignment="TOP_LEFT"
+                  StackPane.alignment="TOP_RIGHT" visible="false" managed="false">
+                <padding><Insets top="44" right="8" bottom="0" left="0"/></padding>
+                <Label text="排行榜" styleClass="lb-title"/>
+                <VBox fx:id="lbList" spacing="3"/>
+            </VBox>
+
+            <!-- 暂停覆盖层 -->
+            <VBox fx:id="pauseOverlay" styleClass="pause-overlay" alignment="CENTER"
+                  visible="false" managed="false">
+                <VBox styleClass="pause-box">
+                    <Label text="⏸ 游戏暂停" styleClass="pause-title"/>
+                    <Button text="继续游戏" styleClass="menu-btn, resume" onAction="#onTogglePause"/>
+                    <Button text="游戏设置" styleClass="menu-btn" onAction="#onOpenSettings"/>
+                    <Button text="返回主菜单" styleClass="menu-btn, secondary" onAction="#onReturnToMenu"/>
+                </VBox>
+            </VBox>
+
+            <!-- 游戏结束覆盖层 -->
+            <VBox fx:id="gameOverOverlay" styleClass="gameover-overlay" alignment="CENTER"
+                  visible="false" managed="false">
+                <VBox styleClass="gameover-box">
+                    <Label text="游戏结束" styleClass="gameover-title"/>
+                    <Label fx:id="finalScoreLabel" text="最终得分: 0" styleClass="gameover-score"/>
+                    <Button text="再来一局" styleClass="menu-btn, resume" onAction="#onRestart"/>
+                    <Button text="返回主菜单" styleClass="menu-btn, ghost" onAction="#onReturnToMenu"/>
+                </VBox>
+            </VBox>
+
+            <!-- 设置覆盖层：与暂停覆盖层同级，背景保持游戏画面 -->
+            <VBox fx:id="settingsOverlay" styleClass="settings-overlay" alignment="CENTER"
+                  visible="false" managed="false">
+            </VBox>
+        </StackPane>
+    </center>
+
+    <bottom>
+        <VBox alignment="CENTER" spacing="4">
+            <padding><Insets top="4" right="4" bottom="4" left="4"/></padding>
+            <!-- 状态栏 -->
+            <HBox fx:id="statusBar" styleClass="status-bar" alignment="CENTER">
+                <Label fx:id="connStatus" text="● 连接中..." styleClass="conn-status"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="roomIdDisplay" text="" styleClass="room-id"/>
+            </HBox>
+            <!-- 提示 -->
+            <Label fx:id="hint" text="按 空格键 / 点击屏幕 / 触摸 来跳跃" styleClass="hint-label"/>
+        </VBox>
+    </bottom>
+</BorderPane>
