@@ -390,9 +390,13 @@ public class Renderer {
             // 绘制玩家主体
             gc.setFill(Color.web(fillColor));
             gc.fillRect(p.getX(), sy, p.getWidth(), p.getHeight());
-            gc.setStroke(Color.web(strokeColor));
-            gc.setLineWidth(2);
-            gc.strokeRect(p.getX(), sy, p.getWidth(), p.getHeight());
+
+            // 其他玩家：普通可变颜色描边（跟随旋转）
+            if (!isMe) {
+                gc.setStroke(Color.web(strokeColor));
+                gc.setLineWidth(p.getStrokeWidth());
+                gc.strokeRect(p.getX(), sy, p.getWidth(), p.getHeight());
+            }
 
             // 恢复变换
             if (knockedBack && Math.abs(rotation) > 0.1) {
@@ -401,9 +405,20 @@ public class Renderer {
                 gc.translate(-centerX, -centerY);
             }
 
+            // 本地玩家：可变颜色发光描边（不跟随旋转，位置与原白色描边一致）
             if (isMe) {
-                gc.setStroke(Color.web("rgba(255,255,255,0.9)"));
-                gc.setLineWidth(2);
+                double sw = p.getStrokeWidth();
+                // 外层光晕
+                gc.setStroke(Color.web(strokeColor, 0.25));
+                gc.setLineWidth(sw * 3);
+                gc.strokeRect(p.getX() - 2, sy - 2, p.getWidth() + 4, p.getHeight() + 4);
+                // 中层光晕
+                gc.setStroke(Color.web(strokeColor, 0.55));
+                gc.setLineWidth(sw * 2);
+                gc.strokeRect(p.getX() - 2, sy - 2, p.getWidth() + 4, p.getHeight() + 4);
+                // 内层实线描边
+                gc.setStroke(Color.web(strokeColor, 0.9));
+                gc.setLineWidth(sw);
                 gc.strokeRect(p.getX() - 2, sy - 2, p.getWidth() + 4, p.getHeight() + 4);
             }
 

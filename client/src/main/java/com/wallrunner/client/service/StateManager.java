@@ -41,6 +41,8 @@ public class StateManager {
             if (fill != null && !fill.isEmpty()) local.setFillColor(fill);
             if (stroke != null && !stroke.isEmpty()) local.setStrokeColor(stroke);
         }
+        double strokeWidth = prefs.getDouble("stroke_width", 0.6);
+        local.setStrokeWidth(strokeWidth);
         state.getPlayers().put(localPlayerId, local);
         GamePhysics.initState(state);
         state.setPhase("menu");
@@ -168,6 +170,7 @@ public class StateManager {
         target.setInvincibleTimer(source.getInvincibleTimer());
         target.setFillColor(source.getFillColor());
         target.setStrokeColor(source.getStrokeColor());
+        target.setStrokeWidth(source.getStrokeWidth());
         target.setRotationAngle(source.getRotationAngle());
         target.setKnockedBack(source.isKnockedBack());
         target.setKnockbackTimer(source.getKnockbackTimer());
@@ -191,6 +194,7 @@ public class StateManager {
         Player c = new Player(p.getId(), p.getName());
         c.setFillColor(p.getFillColor());
         c.setStrokeColor(p.getStrokeColor());
+        c.setStrokeWidth(p.getStrokeWidth());
         c.setX(p.getX()); c.setY(p.getY());
         c.setSide(p.getSide());
         c.setJumping(p.isJumping());

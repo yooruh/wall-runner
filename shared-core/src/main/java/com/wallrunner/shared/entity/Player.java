@@ -20,6 +20,7 @@ public class Player {
     private String name = "玩家";
     private String fillColor = "#4ecca3";
     private String strokeColor = "#3db892";
+    private double strokeWidth = 0.6;
 
     /* ============================================================
        位置与运动状态
@@ -121,6 +122,9 @@ public class Player {
 
     public String getStrokeColor() { return strokeColor; }
     public void setStrokeColor(String strokeColor) { this.strokeColor = strokeColor; }
+
+    public double getStrokeWidth() { return strokeWidth; }
+    public void setStrokeWidth(double strokeWidth) { this.strokeWidth = strokeWidth; }
 
     public double getX() { return x; }
     public void setX(double x) { this.x = x; }

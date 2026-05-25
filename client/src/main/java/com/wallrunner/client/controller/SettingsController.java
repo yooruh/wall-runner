@@ -45,6 +45,8 @@ public class SettingsController {
     @FXML private javafx.scene.layout.Region strokeColorPreview;
     @FXML private ColorPicker fillColorPicker;
     @FXML private ColorPicker strokeColorPicker;
+    @FXML private Slider strokeWidthSlider;
+    @FXML private Label strokeWidthValueLabel;
 
     // 【跨设备联机】服务器地址配置
     @FXML private TextField serverAddressField;
@@ -153,6 +155,23 @@ public class SettingsController {
         }
 
         updateColorPreviews();
+
+        // 描边粗细初始化
+        double savedStrokeWidth = prefs.getDouble("stroke_width", 0.6);
+        if (strokeWidthSlider != null) {
+            strokeWidthSlider.setMin(0.5);
+            strokeWidthSlider.setMax(3.0);
+            strokeWidthSlider.setValue(savedStrokeWidth);
+            strokeWidthSlider.setBlockIncrement(0.1);
+            strokeWidthSlider.valueProperty().addListener((obs, old, val) -> {
+                if (strokeWidthValueLabel != null) {
+                    strokeWidthValueLabel.setText(String.format("%.1f", val.doubleValue()));
+                }
+            });
+        }
+        if (strokeWidthValueLabel != null) {
+            strokeWidthValueLabel.setText(String.format("%.1f", savedStrokeWidth));
+        }
 
         btnAddJumpKey.setOnAction(e -> startListeningForKey());
         jumpKeyHint.setText("点击上方按钮后，按下想绑定的按键");
@@ -331,6 +350,9 @@ public class SettingsController {
                     wsService.setStrokeColor(stroke);
                     prefs.put("stroke_color", stroke);
                 }
+                double strokeWidth = strokeWidthSlider != null ? strokeWidthSlider.getValue() : 0.6;
+                wsService.setStrokeWidth(strokeWidth);
+                prefs.putDouble("stroke_width", strokeWidth);
             }
         }
 

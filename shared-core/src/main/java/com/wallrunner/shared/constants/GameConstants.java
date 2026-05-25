@@ -18,7 +18,7 @@ public final class GameConstants {
     public static final int CANVAS_HEIGHT = 600;
     public static final int WALL_WIDTH = 60;
     public static final int PLAYER_SIZE = 30;
-    public static final double JUMP_SPEED = 6.4;
+    public static final double JUMP_SPEED = 6;
     public static final double GRAVITY = 0.36;
     public static final double CLIMB_SPEED = 1.8;
     public static final double OBSTACLE_SPEED = 2.25;
@@ -30,6 +30,7 @@ public final class GameConstants {
     public static final double CAMERA_SMOOTH = 0.1;
     public static final int MAX_LIVES = 3;
     public static final double DEATH_LINE_OFFSET = 200.0;
+    public static final double RECYCLE_LINE_OFFSET = 800.0;
     public static final double SPAWN_MIN_GAP = 136.0;
     public static final double SPAWN_MAX_GAP = 240.0;
     public static final double SPAWN_AHEAD = 150.0;

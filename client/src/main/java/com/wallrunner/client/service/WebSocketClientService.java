@@ -48,6 +48,7 @@ public class WebSocketClientService {
     private int timeBonusPoints = 10;
     private String fillColor = "";
     private String strokeColor = "";
+    private double strokeWidth = 0.6;
     private java.util.Timer heartbeatTimer;
 
     // 【跨设备联机】服务器地址配置，默认 localhost，可改为局域网 IP
@@ -269,6 +270,9 @@ public class WebSocketClientService {
     public void setFillColor(String v) { this.fillColor = v != null ? v : ""; }
     public String getStrokeColor() { return strokeColor; }
     public void setStrokeColor(String v) { this.strokeColor = v != null ? v : ""; }
+
+    public double getStrokeWidth() { return strokeWidth; }
+    public void setStrokeWidth(double v) { this.strokeWidth = v > 0 ? v : 0.6; }
 
     public String getServerAddress() { return serverAddress; }
     public void setServerAddress(String v) { this.serverAddress = v != null && !v.isEmpty() ? v : "localhost"; }

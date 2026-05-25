@@ -37,6 +37,7 @@ import static com.wallrunner.shared.constants.GameConstants.KNOCKBACK_VY;
 import static com.wallrunner.shared.constants.GameConstants.MAX_LIVES;
 import static com.wallrunner.shared.constants.GameConstants.OBSTACLE_SPEED;
 import static com.wallrunner.shared.constants.GameConstants.PLAYER_SIZE;
+import static com.wallrunner.shared.constants.GameConstants.RECYCLE_LINE_OFFSET;
 import static com.wallrunner.shared.constants.GameConstants.SAFE_LEFT;
 import static com.wallrunner.shared.constants.GameConstants.SAFE_RIGHT;
 import static com.wallrunner.shared.constants.GameConstants.SPAWN_AHEAD;
@@ -159,14 +160,14 @@ public class GamePhysics {
             }
         }
 
-        // 4. 玩家间碰撞 —— 无敌状态保留与其他玩家的碰撞交互
+        // 4. 玩家间碰撞 —— 无敌玩家可撞击普通玩家，但无视被撞击/分离
         for (int i = 0; i < collidable.size(); i++) {
             for (int j = i + 1; j < collidable.size(); j++) {
                 Player a = collidable.get(i);
                 Player b = collidable.get(j);
                 // 【修复】暂停玩家无碰撞效果
                 if (a.isPaused() || b.isPaused()) continue;
-                // 【修改】无敌状态仍保留与其他玩家的碰撞交互（仅跳过障碍物碰撞）
+                // 【修复】无敌玩家可主动撞击普通玩家，普通玩家撞击无敌者会被反弹
                 if (checkPlayerCollision(a, b)) {
                     resolvePlayerCollision(a, b);
                 }
@@ -236,7 +237,7 @@ public class GamePhysics {
                 .mapToDouble(Player::getCameraY)
                 .max()
                 .orElse(state.getCameraY());
-        double recycleLine = lastCamY + CANVAS_HEIGHT + DEATH_LINE_OFFSET;
+        double recycleLine = lastCamY + CANVAS_HEIGHT + RECYCLE_LINE_OFFSET;
         state.getCollectibles().removeIf(c -> c.getY() > recycleLine);
 
         // 3. 碰撞检测：玩家与收集物
@@ -423,7 +424,7 @@ public class GamePhysics {
                 .mapToDouble(Player::getCameraY)
                 .max()
                 .orElse(state.getCameraY());
-        double recycleLine = lastCamY + CANVAS_HEIGHT + DEATH_LINE_OFFSET;
+        double recycleLine = lastCamY + CANVAS_HEIGHT + RECYCLE_LINE_OFFSET;
 
         state.getObstacles().removeIf(obs -> {
             if (!"wall_spike".equals(obs.getType())) {
@@ -502,19 +503,25 @@ public class GamePhysics {
                     ? CLIMB_SPEED * COLLECTIBLE_SPEED_MULTIPLIER : CLIMB_SPEED;
             double testY = player.getY() - climbSpeed;
             boolean blocked = false;
-            for (Obstacle obs : obstacles) {
-                if (rectIntersect(player.getX(), testY, player.getWidth(), player.getHeight(),
-                        obs.getX(), obs.getY(), obs.getWidth(), obs.getHeight())) {
-                    blocked = true; break;
+            // 【修复】无敌玩家攀爬时无视障碍物碰撞（包括尖刺的横向碰撞和撞击碰撞）
+            if (!player.isInvincible()) {
+                for (Obstacle obs : obstacles) {
+                    if (rectIntersect(player.getX(), testY, player.getWidth(), player.getHeight(),
+                            obs.getX(), obs.getY(), obs.getWidth(), obs.getHeight())) {
+                        blocked = true; break;
+                    }
                 }
             }
             if (!blocked) {
-                for (Player other : activePlayers) {
-                    // 【修复】暂停玩家不参与碰撞检测，无敌玩家也不参与碰撞检测
-                    if (other == player || other.isPaused() || other.isInvincible()) continue;
-                    if (rectIntersect(player.getX(), testY, player.getWidth(), player.getHeight(),
-                            other.getX(), other.getY(), other.getWidth(), other.getHeight())) {
-                        blocked = true; break;
+                // 【修复】无敌玩家攀爬时无视与其他玩家的碰撞
+                if (!player.isInvincible()) {
+                    for (Player other : activePlayers) {
+                        // 【修复】暂停玩家不参与碰撞检测，无敌玩家也不参与碰撞检测
+                        if (other == player || other.isPaused() || other.isInvincible()) continue;
+                        if (rectIntersect(player.getX(), testY, player.getWidth(), player.getHeight(),
+                                other.getX(), other.getY(), other.getWidth(), other.getHeight())) {
+                            blocked = true; break;
+                        }
                     }
                 }
             }
@@ -782,6 +789,32 @@ public class GamePhysics {
     }
 
     private static void resolvePlayerCollision(Player a, Player b) {
+        boolean aInvincible = a.isInvincible();
+        boolean bInvincible = b.isInvincible();
+
+        // 【修复】双方都无敌：完全无视碰撞，直接穿过
+        if (aInvincible && bInvincible) return;
+
+        // 【修复】仅一方无敌：无敌玩家无视碰撞，但可造成/反弹撞击效果
+        if (aInvincible || bInvincible) {
+            Player invincible = aInvincible ? a : b;
+            Player normal = aInvincible ? b : a;
+            boolean invincibleJumping = invincible.isJumping();
+            boolean normalJumping = normal.isJumping();
+
+            // 无敌玩家在跳跃中（主动撞击普通玩家）：普通玩家被击退
+            if (invincibleJumping) {
+                applyKnockback(normal, invincible.getSide());
+            }
+            // 普通玩家在跳跃中（主动撞击无敌玩家）：普通玩家被反弹击退
+            else if (normalJumping) {
+                applyKnockback(normal, normal.getSide());
+            }
+            // 双方都攀爬：无敌玩家直接穿过，不做任何处理
+            return;
+        }
+
+        // 双方都不无敌：保持原有碰撞逻辑
         double dx = (a.getX() + a.getWidth() / 2) - (b.getX() + b.getWidth() / 2);
         double dy = (a.getY() + a.getHeight() / 2) - (b.getY() + b.getHeight() / 2);
         double overlapX = (a.getWidth() + b.getWidth()) / 2 - Math.abs(dx);

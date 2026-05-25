@@ -127,6 +127,13 @@
                             <ColorPicker fx:id="strokeColorPicker" style="-fx-pref-width: 32; -fx-pref-height: 24;"/>
                         </HBox>
 
+                        <!-- 描边粗细 -->
+                        <Label text="描边粗细" styleClass="settings-label"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Slider fx:id="strokeWidthSlider" min="0.5" max="3.0" value="0.6" blockIncrement="0.1" majorTickUnit="0.5" minorTickCount="4" showTickLabels="true" showTickMarks="true" styleClass="settings-slider" HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="strokeWidthValueLabel" text="0.6" styleClass="settings-label" prefWidth="36"/>
+                        </HBox>
+
                         <Label text="点击色块选择预设颜色，或使用右侧取色器自定义" styleClass="settings-hint"/>
                     </VBox>
                 </VBox>
