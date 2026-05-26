@@ -44,7 +44,7 @@ public class ObstacleManager implements IObstacleManager {
         double dist = state.getNextSpawnCameraY() - displayCamY;
         if (dist > 0) return;
         spawnObstacle(state, displayCamY);
-        state.setNextSpawnCameraY(displayCamY - random(SPAWN_MIN_GAP, SPAWN_MAX_GAP));
+        state.setNextSpawnCameraY(displayCamY - random((int) SPAWN_MIN_GAP, (int) SPAWN_MAX_GAP));
     }
 
     private void spawnObstacle(GameState state, double cameraY) {

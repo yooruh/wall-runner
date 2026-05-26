@@ -40,6 +40,10 @@ public class SessionManager implements ISessionManager {
     }
 
     public Map<String, WebSocketSession> getAllSessions() {
-        return sessions;
+        return java.util.Collections.unmodifiableMap(sessions);
+    }
+
+    public boolean hasSession(String sessionId) {
+        return sessions.containsKey(sessionId);
     }
 }

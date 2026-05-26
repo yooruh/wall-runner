@@ -14,4 +14,5 @@ public interface ILocalPhysicsEngine {
     void handleInput(Player player, String inputType);
     void startGame(GameState state);
     void initState(GameState state);
+    void initJoiningPlayer(GameState state, Player player);
 }

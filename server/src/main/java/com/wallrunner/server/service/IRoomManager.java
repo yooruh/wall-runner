@@ -1,6 +1,7 @@
 package com.wallrunner.server.service;
 
 import com.wallrunner.shared.entity.GameState;
+import com.wallrunner.shared.entity.Player;
 
 import java.util.Set;
 
@@ -10,11 +11,11 @@ import java.util.Set;
 public interface IRoomManager {
     String createRoom(String hostId);
     String createRoom(String hostId, String customRoomId);
-    boolean joinRoom(String roomId, String guestId);
-    void leaveRoom(String playerId);
+    boolean joinRoom(String roomId, Player player);
+    void leaveRoom(String roomId, String playerId);
     void removeRoom(String roomId);
     boolean isRoomExists(String roomId);
-    String getRoom(String playerId);
+    GameState getRoom(String roomId);
     String getHost(String roomId);
     Set<String> getRoomMembers(String roomId);
     GameState getRoomState(String roomId);

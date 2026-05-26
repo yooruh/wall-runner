@@ -95,15 +95,15 @@ public class MovementSystem implements IMovementSystem {
             double minOverlap = Math.min(Math.min(overlapTop, overlapBottom), Math.min(overlapLeft, overlapRight));
 
             if ("wall_spike".equals(obs.getType())) {
-                resolveSpikeCollision(player, obs, minOverlap, overlapLeft, overlapRight, overlapBottom);
+                resolveSpikeCollision(player, obs, minOverlap, overlapTop, overlapLeft, overlapRight, overlapBottom);
             } else {
-                resolveFloatingObstacleCollision(player, minOverlap, overlapTop, overlapBottom, overlapLeft, overlapRight);
+                resolveFloatingObstacleCollision(player, obs, minOverlap, overlapTop, overlapBottom, overlapLeft, overlapRight);
             }
         }
     }
 
     private void resolveSpikeCollision(Player player, Obstacle obs, double minOverlap,
-                                       double overlapLeft, double overlapRight, double overlapBottom) {
+                                       double overlapTop, double overlapLeft, double overlapRight, double overlapBottom) {
         boolean isFrontal = player.isJumping() && !player.getSide().equals(obs.getSide()) &&
                 (minOverlap == overlapLeft || minOverlap == overlapRight);
         if (isFrontal) {
@@ -120,7 +120,7 @@ public class MovementSystem implements IMovementSystem {
         }
     }
 
-    private void resolveFloatingObstacleCollision(Player player, double minOverlap,
+    private void resolveFloatingObstacleCollision(Player player, Obstacle obs, double minOverlap,
                                                   double overlapTop, double overlapBottom,
                                                   double overlapLeft, double overlapRight) {
         if (minOverlap == overlapBottom) {

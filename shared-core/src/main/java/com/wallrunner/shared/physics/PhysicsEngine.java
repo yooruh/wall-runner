@@ -279,7 +279,9 @@ public class PhysicsEngine implements IPhysicsEngine {
         return active;
     }
 
+    private static final java.util.Random RANDOM = new java.util.Random();
+
     private int random(int min, int max) {
-        return new java.util.Random().nextInt(max - min + 1) + min;
+        return RANDOM.nextInt(max - min + 1) + min;
     }
 }

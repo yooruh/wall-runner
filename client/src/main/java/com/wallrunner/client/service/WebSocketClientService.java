@@ -32,8 +32,8 @@ public class WebSocketClientService implements IWebSocketClient {
     private final ObjectMapper mapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final HttpClient httpClient = HttpClient.newHttpClient();
-    private WebSocket webSocket;
-    private boolean connected = false;
+    private volatile WebSocket webSocket;
+    private volatile boolean connected = false;
 
     // 设置项
     private String playerName = "玩家";
@@ -74,6 +74,9 @@ public class WebSocketClientService implements IWebSocketClient {
     }
 
     public boolean connect(String uri) {
+        if (connected || webSocket != null) {
+            disconnect();
+        }
         try {
             webSocket = httpClient.newWebSocketBuilder()
                     .buildAsync(URI.create(uri), new WsListener())
@@ -95,12 +98,14 @@ public class WebSocketClientService implements IWebSocketClient {
 
     public void disconnect() {
         stopHeartbeat();
-        if (webSocket != null) {
+        connected = false;
+        WebSocket ws = webSocket;
+        webSocket = null;
+        if (ws != null) {
             try {
-                webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "client leave");
+                ws.sendClose(WebSocket.NORMAL_CLOSURE, "client leave");
             } catch (Exception ignored) {}
         }
-        connected = false;
         myId = null;
         currentRoomId = null;
         pendingMessages.clear();
@@ -224,7 +229,7 @@ public class WebSocketClientService implements IWebSocketClient {
         }
     }
 
-    private void send(Map<String, Object> msg) {
+    public void send(Map<String, Object> msg) {
         if (!connected || webSocket == null) return;
         try {
             String json = mapper.writeValueAsString(msg);

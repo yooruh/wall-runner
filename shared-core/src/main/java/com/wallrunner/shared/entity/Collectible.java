@@ -8,6 +8,7 @@ package com.wallrunner.shared.entity;
  */
 public class Collectible implements IEntity {
 
+    private String id;
     private double x;
     private double y;
     private double width = 20;
@@ -24,6 +25,9 @@ public class Collectible implements IEntity {
     private String effectOnCollect = "";    // 收集时触发的特效标识
 
     public Collectible() {}
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public double getX() { return x; }
     public void setX(double x) { this.x = x; }

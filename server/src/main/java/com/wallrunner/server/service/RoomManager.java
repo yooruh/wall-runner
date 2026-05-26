@@ -5,7 +5,10 @@ import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,8 +32,7 @@ public class RoomManager implements IRoomManager {
     }
 
     public String createRoom(String roomId, String hostSessionId) {
-        if (rooms.containsKey(roomId)) return null;
-        rooms.put(roomId, new GameState());
+        if (rooms.putIfAbsent(roomId, new GameState()) != null) return null;
         roomHosts.put(roomId, hostSessionId);
         return roomId;
     }
@@ -106,5 +108,19 @@ public class RoomManager implements IRoomManager {
 
     public Map<String, GameState> getAllRooms() {
         return rooms;
+    }
+
+    public Set<String> getRoomMembers(String roomId) {
+        GameState state = rooms.get(roomId);
+        if (state == null) return Collections.emptySet();
+        return new HashSet<>(state.getPlayers().keySet());
+    }
+
+    public GameState getRoomState(String roomId) {
+        return rooms.get(roomId);
+    }
+
+    public void setRoomState(String roomId, GameState state) {
+        rooms.put(roomId, state);
     }
 }

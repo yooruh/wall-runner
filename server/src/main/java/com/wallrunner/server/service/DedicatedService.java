@@ -85,7 +85,7 @@ public class DedicatedService implements IDedicatedService {
         }
     }
 
-    private int broadcastCounter = 0;
+    private final Map<String, Integer> broadcastCounters = new ConcurrentHashMap<>();
 
     @Scheduled(fixedRate = 8)
     public void tick() {
@@ -121,9 +121,10 @@ public class DedicatedService implements IDedicatedService {
                 }
             }
 
-            broadcastCounter++;
-            if (broadcastCounter >= 2) {
-                broadcastCounter = 0;
+            int counter = broadcastCounters.getOrDefault(roomId, 0) + 1;
+            broadcastCounters.put(roomId, counter);
+            if (counter >= 2) {
+                broadcastCounters.put(roomId, 0);
                 broadcastState(roomId, state);
             }
             if ("gameover".equals(state.getPhase())) {
@@ -149,6 +150,10 @@ public class DedicatedService implements IDedicatedService {
                 break;
             }
         }
+    }
+
+    public GameState getGameState() {
+        return roomManager.getRoom(MAIN_ROOM_ID);
     }
 
     private void broadcastState(String roomId, GameState state) {

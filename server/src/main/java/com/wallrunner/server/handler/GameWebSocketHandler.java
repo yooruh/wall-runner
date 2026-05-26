@@ -40,10 +40,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final IDedicatedService dedicatedService;
     private final IRelayService relayService;
 
-    public GameWebSocketHandler() {
-        this(new SessionManager(), new RoomManager(), new DedicatedService(), new RelayService());
-    }
-
     public GameWebSocketHandler(ISessionManager sessionManager,
                                 IRoomManager roomManager,
                                 IDedicatedService dedicatedService,
@@ -66,8 +62,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if (roomId != null) {
             // 统一处理所有模式（Dedicated/Relay）的离开逻辑
             roomManager.leaveRoom(roomId, session.getId());
-            sessionManager.unregister(session.getId());
         }
+        sessionManager.unregister(session.getId());
         System.out.println("[WS] Disconnected: " + session.getId());
     }
 
@@ -230,7 +226,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             }
         }
         //  fallback: 随机分配
-        int idx = Math.abs(player.getId().hashCode()) % GameConstants.PLAYER_COLOR_PAIRS.length;
+        int idx = Math.floorMod(player.getId().hashCode(), GameConstants.PLAYER_COLOR_PAIRS.length);
         player.setFillColor(GameConstants.PLAYER_COLOR_PAIRS[idx][0]);
         player.setStrokeColor(GameConstants.PLAYER_COLOR_PAIRS[idx][1]);
     }

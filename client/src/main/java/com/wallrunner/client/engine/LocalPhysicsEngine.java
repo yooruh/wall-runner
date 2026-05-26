@@ -39,4 +39,9 @@ public class LocalPhysicsEngine implements ILocalPhysicsEngine {
     public void initState(GameState state) {
         GamePhysics.initState(state);
     }
+
+    @Override
+    public void initJoiningPlayer(GameState state, Player player) {
+        GamePhysics.initJoiningPlayer(state, player);
+    }
 }

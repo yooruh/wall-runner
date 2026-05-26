@@ -371,7 +371,7 @@ public class GameController {
                 joiner.setFillColor(fillColor);
                 joiner.setStrokeColor(strokeColor);
             } else {
-                int colorIdx = Math.abs(pid.hashCode()) % GameConstants.PLAYER_COLOR_PAIRS.length;
+                int colorIdx = Math.floorMod(pid.hashCode(), GameConstants.PLAYER_COLOR_PAIRS.length);
                 joiner.setFillColor(GameConstants.PLAYER_COLOR_PAIRS[colorIdx][0]);
                 joiner.setStrokeColor(GameConstants.PLAYER_COLOR_PAIRS[colorIdx][1]);
             }
@@ -753,7 +753,8 @@ public class GameController {
     }
 
     private void hideDeathUI() {
-        if (gameOverOverlay != null && gameOverOverlay.isVisible() && !"gameover".equals(sm.getState().getPhase())) {
+        GameState currentState = sm.getState();
+        if (gameOverOverlay != null && gameOverOverlay.isVisible() && currentState != null && !"gameover".equals(currentState.getPhase())) {
             gameOverOverlay.setVisible(false);
             gameOverOverlay.setManaged(false);
         }

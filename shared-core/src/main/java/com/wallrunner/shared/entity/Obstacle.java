@@ -9,6 +9,7 @@ package com.wallrunner.shared.entity;
  */
 public class Obstacle implements IEntity {
 
+    private String id;
     private double x;
     private double y;
     private double width;
@@ -32,6 +33,9 @@ public class Obstacle implements IEntity {
     private double phase = 0.0;
 
     public Obstacle() {}
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public double getX() { return x; }
     public void setX(double x) { this.x = x; }

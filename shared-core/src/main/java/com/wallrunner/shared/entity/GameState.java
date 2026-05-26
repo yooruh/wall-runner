@@ -1,9 +1,9 @@
 package com.wallrunner.shared.entity;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 单局游戏的完整运行时状态。
@@ -18,7 +18,7 @@ public class GameState {
     /* ============================================================
        核心游戏状态
        ============================================================ */
-    private Map<String, Player> players = new HashMap<>();
+    private Map<String, Player> players = new ConcurrentHashMap<>();
     private List<Obstacle> obstacles = new ArrayList<>();
     private String phase = "menu";      // "menu" | "playing" | "gameover"
     private int frames = 0;
