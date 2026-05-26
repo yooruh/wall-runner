@@ -1,0 +1,53 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+title WallRunner v3.0 — 系统整体用例图
+
+actor "玩家" as Player
+actor "房主" as Host
+actor "访客" as Guest
+
+rectangle "墙间跑酷系统" {
+    usecase "单人离线游玩" as UC1
+    usecase "公共服务器联机" as UC2
+    usecase "创建房间" as UC3
+    usecase "加入房间" as UC4
+    usecase "跳跃换墙" as UC5
+    usecase "躲避障碍物" as UC6
+    usecase "收集道具" as UC7
+    usecase "玩家碰撞互动" as UC8
+    usecase "自定义角色外观" as UC9
+    usecase "查看排行榜" as UC10
+    usecase "配置游戏设置" as UC11
+    usecase "观战模式" as UC12
+
+    UC2 ..> UC5 : <<include>>
+    UC3 ..> UC5 : <<include>>
+    UC4 ..> UC5 : <<include>>
+    UC1 ..> UC6 : <<include>>
+    UC2 ..> UC6 : <<include>>
+    UC3 ..> UC6 : <<include>>
+    UC4 ..> UC6 : <<include>>
+    UC8 ..> UC5 : <<extend>>
+    UC12 ..> UC2 : <<extend>>
+}
+
+Player --> UC1
+Player --> UC2
+Player --> UC9
+Player --> UC10
+Player --> UC11
+Host --> UC3
+Guest --> UC4
+
+note right of UC8
+  跳跃玩家撞击非跳跃玩家
+  触发击退+旋转+无敌
+end note
+
+note right of UC12
+  死亡后自动切换观战视角
+  跟随最靠前存活玩家
+end note
+@enduml

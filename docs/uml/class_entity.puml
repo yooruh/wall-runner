@@ -1,0 +1,88 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+title WallRunner v3.0 — shared-core 实体层类图
+
+package "com.wallrunner.shared.entity" {
+    interface IEntity {
+        +getId(): String
+        +setId(String id): void
+    }
+
+    class Player implements IEntity {
+        -id: String
+        -name: String
+        -fillColor: String
+        -strokeColor: String
+        -x, y: double
+        -side: String
+        -jumping: boolean
+        -vy: double
+        -active: boolean
+        -score: int
+        -lives: int
+        -cameraY: double
+        -invincible: boolean
+        -knockedBack: boolean
+        -spectator: boolean
+        +getId(): String
+        +setId(String): void
+        +isActive(): boolean
+        +setActive(boolean): void
+        +isJumping(): boolean
+        +setJumping(boolean): void
+    }
+
+    class Obstacle implements IEntity {
+        -id: String
+        -type: String
+        -x, y: double
+        -width, height: double
+        -side: String
+        -difficulty: int
+        +getId(): String
+        +setId(String): void
+    }
+
+    class Collectible implements IEntity {
+        -id: String
+        -type: String
+        -x, y: double
+        -collected: boolean
+        -value: int
+        -effectOnCollect: String
+        +getId(): String
+        +setId(String): void
+    }
+
+    class GameState {
+        -players: Map<String, Player>
+        -obstacles: List<Obstacle>
+        -collectibles: List<Collectible>
+        -phase: String
+        -cameraY: double
+        -difficultyLevel: int
+        +getPlayers(): Map<String, Player>
+        +setPlayers(Map): void
+        +getObstacles(): List<Obstacle>
+        +getCollectibles(): List<Collectible>
+    }
+}
+
+IEntity <|-- Player
+IEntity <|-- Obstacle
+IEntity <|-- Collectible
+GameState "1" *-- "0..*" Player : contains
+GameState "1" *-- "0..*" Obstacle : contains
+GameState "1" *-- "0..*" Collectible : contains
+
+note right of Player
+  纯POJO，无业务逻辑
+  可被Jackson序列化
+end note
+
+note right of GameState
+  聚合根（Aggregate Root）
+  非线程安全
+end note
+@enduml

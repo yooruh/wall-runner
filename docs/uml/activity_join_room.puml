@@ -1,0 +1,47 @@
+@startuml
+
+title WallRunner v3.0 — 加入房间活动图
+
+start
+
+:输入房间号;
+:点击"加入房间";
+
+if (WebSocket已连接?) then (否)
+  :connect(serverAddress:port);
+  if (连接成功?) then (否)
+    :显示错误提示;
+    stop
+  else (是)
+  endif
+else (是)
+endif
+
+:joinRoom(roomId, name);
+:发送 mode_select 消息;
+
+partition "服务端处理" {
+  :GameWebSocketHandler接收;
+  :RelayService.onGuestJoin();
+  :RoomManager.joinRoom();
+  if (房间存在?) then (否)
+    :返回 ERROR;
+    :显示"房间不存在";
+    stop
+  else (是)
+  endif
+  :分配颜色;
+  :返回 joined_room;
+}
+
+:接收 joined_room;
+:保存 playerId / roomId / 颜色;
+:switchScene(game.fxml);
+:GameController 初始化;
+:setMode(RELAY_GUEST);
+:initLocalState();
+:开始接收房主广播STATE;
+:Renderer 渲染;
+
+stop
+@enduml

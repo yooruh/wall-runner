@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 原则：纯注册表，零业务逻辑。
  */
 @Service
-public class SessionManager {
+public class SessionManager implements ISessionManager {
 
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, String> sessionToRoom = new ConcurrentHashMap<>();

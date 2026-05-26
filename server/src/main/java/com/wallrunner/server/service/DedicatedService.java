@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 原则：物理计算委托给 GamePhysics（Y层），本类仅做调度与网络 I/O（X层）。
  */
 @Service
-public class DedicatedService {
+public class DedicatedService implements IDedicatedService {
 
     private final RoomManager roomManager;
     private final SessionManager sessionManager;

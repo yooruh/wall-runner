@@ -1,8 +1,15 @@
 package com.wallrunner.client.controller;
 
 import com.wallrunner.client.ClientApplication;
+import com.wallrunner.client.engine.ILocalPhysicsEngine;
+import com.wallrunner.client.engine.IPredictor;
 import com.wallrunner.client.engine.LocalPhysicsEngine;
 import com.wallrunner.client.engine.Predictor;
+import com.wallrunner.client.service.IGameLoop;
+import com.wallrunner.client.service.IInputHandler;
+import com.wallrunner.client.service.IRenderer;
+import com.wallrunner.client.service.IStateManager;
+import com.wallrunner.client.service.IWebSocketClient;
 import com.wallrunner.client.service.GameLoopService;
 import com.wallrunner.client.service.InputService;
 import com.wallrunner.client.service.Renderer;
@@ -68,13 +75,37 @@ public class GameController {
     @FXML private Label bottomDeathHint;
     @FXML private javafx.scene.control.Button bottomRespawnBtn;
 
-    private final WebSocketClientService ws = WebSocketClientService.getInstance();
-    private final StateManager sm = StateManager.getInstance();
-    private final Renderer renderer = new Renderer();
-    private final InputService input = new InputService();
-    private final GameLoopService loop = new GameLoopService();
-    private final LocalPhysicsEngine physics = new LocalPhysicsEngine();
-    private final Predictor predictor = new Predictor();
+    private final IWebSocketClient ws;
+    private final IStateManager sm;
+    private final IRenderer renderer;
+    private final IInputHandler input;
+    private final IGameLoop loop;
+    private final ILocalPhysicsEngine physics;
+    private final IPredictor predictor;
+
+    // 默认构造器：使用具体实现（向后兼容）
+    public GameController() {
+        this(WebSocketClientService.getInstance(),
+             StateManager.getInstance(),
+             new Renderer(),
+             new InputService(),
+             new GameLoopService(),
+             new LocalPhysicsEngine(),
+             new Predictor());
+    }
+
+    // 依赖注入构造器（便于测试与UML建模）
+    public GameController(IWebSocketClient ws, IStateManager sm, IRenderer renderer,
+                          IInputHandler input, IGameLoop loop,
+                          ILocalPhysicsEngine physics, IPredictor predictor) {
+        this.ws = ws;
+        this.sm = sm;
+        this.renderer = renderer;
+        this.input = input;
+        this.loop = loop;
+        this.physics = physics;
+        this.predictor = predictor;
+    }
 
     private boolean paused = false;
     private boolean initialized = false;
@@ -221,7 +252,7 @@ public class GameController {
         String phase = state.getPhase();
         if ("menu".equals(phase) || "gameover".equals(phase)) {
             if (isOffline() || isHost()) {
-                GamePhysics.startGame(state);
+                physics.startGame(state);
             } else {
                 ws.sendInput("start");
             }
@@ -239,7 +270,7 @@ public class GameController {
             }
             if (me != null && !me.isPaused()) {
                 if (isOffline() || isHost()) {
-                    GamePhysics.handleInput(me, "jump");
+                    physics.handleInput(me, "jump");
                     renderer.spawnJumpParticles(me.getX(), me.getY(), me.getSide(), me.getWidth(), me.getHeight());
                 } else if (currentMode == Mode.DEDICATED) {
                     ws.sendInput("jump");
@@ -344,7 +375,7 @@ public class GameController {
                 joiner.setFillColor(GameConstants.PLAYER_COLOR_PAIRS[colorIdx][0]);
                 joiner.setStrokeColor(GameConstants.PLAYER_COLOR_PAIRS[colorIdx][1]);
             }
-            GamePhysics.initJoiningPlayer(state, joiner);
+            physics.initJoiningPlayer(state, joiner);
             state.getPlayers().put(pid, joiner);
         }
         ws.sendState(state);
@@ -380,14 +411,14 @@ public class GameController {
         boolean changed = switch (action) {
             case "start" -> {
                 if ("menu".equals(state.getPhase()) || "gameover".equals(state.getPhase())) {
-                    GamePhysics.startGame(state);
+                    physics.startGame(state);
                     yield true;
                 } else if ("playing".equals(state.getPhase())) {
                     yield true;
                 }
                 yield false;
             }
-            case "jump"   -> { GamePhysics.handleInput(p, "jump"); yield true; }
+            case "jump"   -> { physics.handleInput(p, "jump"); yield true; }
             case "pause"  -> { p.setPaused(true); yield true; }
             case "resume" -> { p.setPaused(false); yield true; }
             default -> false;

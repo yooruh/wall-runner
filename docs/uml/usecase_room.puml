@@ -1,0 +1,43 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+title WallRunner v3.0 — 房间管理用例图
+
+actor "房主" as Host
+actor "访客" as Guest
+actor "服务端" as Server
+
+rectangle "房间管理子系统" {
+    usecase "创建房间" as UC_R1
+    usecase "自定义房间号" as UC_R2
+    usecase "加入房间" as UC_R3
+    usecase "复制房间码" as UC_R4
+    usecase "离开房间" as UC_R5
+    usecase "销毁房间" as UC_R6
+    usecase "分配玩家颜色" as UC_R7
+    usecase "掉线检测" as UC_R8
+    usecase "标记离线玩家" as UC_R9
+
+    UC_R1 ..> UC_R7 : <<include>>
+    UC_R3 ..> UC_R7 : <<include>>
+    UC_R2 ..> UC_R1 : <<extend>>
+    UC_R9 ..> UC_R8 : <<extend>>
+    UC_R6 ..> UC_R5 : <<include>>
+}
+
+Host --> UC_R1
+Host --> UC_R2
+Host --> UC_R4
+Host --> UC_R5
+Guest --> UC_R3
+Guest --> UC_R5
+Server --> UC_R6
+Server --> UC_R8
+Server --> UC_R9
+
+note right of UC_R7
+  8组预设颜色
+  服务器自动分配不重复颜色
+end note
+@enduml

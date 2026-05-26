@@ -1,0 +1,34 @@
+@startuml
+
+title WallRunner v3.0 — 游戏阶段状态图
+
+[*] --> Menu : 启动应用
+Menu --> Playing : 玩家点击开始
+Playing --> Paused : 按ESC/P暂停
+Paused --> Playing : 按ESC/P恢复
+Playing --> GameOver : 所有玩家死亡
+GameOver --> Menu : 返回主菜单
+GameOver --> Playing : 重新开始
+Menu --> [*] : 退出应用
+
+state Playing {
+    [*] --> Normal
+    Normal --> DifficultyUp : 高度达到阈值
+    DifficultyUp --> Normal : 难度已提升
+    Normal --> CollectibleSpawn : 生成收集物
+    CollectibleSpawn --> Normal : 收集物已生成
+}
+
+state GameOver {
+    [*] --> ShowLeaderboard
+    ShowLeaderboard --> WaitRestart : 显示排行榜
+    WaitRestart --> [*] : 玩家选择
+}
+
+note right of Playing
+  内部子状态：
+  - Normal: 正常游戏
+  - DifficultyUp: 难度递增
+  - CollectibleSpawn: 收集物生成
+end note
+@enduml

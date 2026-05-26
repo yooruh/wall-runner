@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 掉线玩家标记为 disconnected，不立即移除，便于断线重连。
  */
 @Service
-public class RoomManager {
+public class RoomManager implements IRoomManager {
 
     private final Map<String, GameState> rooms = new ConcurrentHashMap<>();
     private final Map<String, String> roomHosts = new ConcurrentHashMap<>();

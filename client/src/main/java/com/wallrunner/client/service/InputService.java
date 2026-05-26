@@ -16,7 +16,7 @@ import java.util.function.Consumer;
  * - 支持多键绑定同一行为。
  * - 保留触屏/鼠标点击跳跃。
  */
-public class InputService {
+public class InputService implements IInputHandler {
 
     private final Set<KeyCode> pressed = new HashSet<>();
     private Consumer<String> onAction;

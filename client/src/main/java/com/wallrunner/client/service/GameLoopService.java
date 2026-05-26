@@ -11,7 +11,7 @@ import java.util.function.Consumer;
  *
  * 原则：仅做调度器，不触碰游戏状态。
  */
-public class GameLoopService {
+public class GameLoopService implements IGameLoop {
 
     private final Timeline timeline;
     private Consumer<Double> onTick;

@@ -17,7 +17,7 @@ import com.wallrunner.shared.entity.Player;
  * 原则：纯网络 I/O，零游戏逻辑。
  */
 @Service
-public class RelayService {
+public class RelayService implements IRelayService {
 
     private final RoomManager roomManager;
     private final SessionManager sessionManager;

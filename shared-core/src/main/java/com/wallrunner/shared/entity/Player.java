@@ -11,7 +11,7 @@ import java.util.List;
  * - 可被 Jackson / Gson 序列化。
  * - 预留特效、技能、可收集物字段，便于未来扩展。
  */
-public class Player {
+public class Player implements IEntity {
 
     /* ============================================================
        身份与外观

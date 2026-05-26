@@ -13,6 +13,10 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wallrunner.server.service.IDedicatedService;
+import com.wallrunner.server.service.IRelayService;
+import com.wallrunner.server.service.IRoomManager;
+import com.wallrunner.server.service.ISessionManager;
 import com.wallrunner.server.service.DedicatedService;
 import com.wallrunner.server.service.RelayService;
 import com.wallrunner.server.service.RoomManager;
@@ -31,15 +35,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private final SessionManager sessionManager;
-    private final RoomManager roomManager;
-    private final DedicatedService dedicatedService;
-    private final RelayService relayService;
+    private final ISessionManager sessionManager;
+    private final IRoomManager roomManager;
+    private final IDedicatedService dedicatedService;
+    private final IRelayService relayService;
 
-    public GameWebSocketHandler(SessionManager sessionManager,
-                                RoomManager roomManager,
-                                DedicatedService dedicatedService,
-                                RelayService relayService) {
+    public GameWebSocketHandler() {
+        this(new SessionManager(), new RoomManager(), new DedicatedService(), new RelayService());
+    }
+
+    public GameWebSocketHandler(ISessionManager sessionManager,
+                                IRoomManager roomManager,
+                                IDedicatedService dedicatedService,
+                                IRelayService relayService) {
         this.sessionManager = sessionManager;
         this.roomManager = roomManager;
         this.dedicatedService = dedicatedService;

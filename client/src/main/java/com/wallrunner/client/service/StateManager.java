@@ -15,7 +15,7 @@ import java.util.prefs.Preferences;
  * - reconcile 同步权威状态中的所有玩家（添加缺失、更新已有、移除离线）。
  * - 本地玩家使用平滑插值校正，避免画面跳变；其他玩家直接覆盖。
  */
-public class StateManager {
+public class StateManager implements IStateManager {
 
     private static final StateManager INSTANCE = new StateManager();
     public static StateManager getInstance() { return INSTANCE; }

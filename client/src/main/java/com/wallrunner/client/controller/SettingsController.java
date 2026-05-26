@@ -1,6 +1,7 @@
 package com.wallrunner.client.controller;
 
 import com.wallrunner.client.ClientApplication;
+import com.wallrunner.client.service.IWebSocketClient;
 import com.wallrunner.client.service.WebSocketClientService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -55,8 +56,18 @@ public class SettingsController {
     // 预留：主题选择器
     @FXML private ComboBox<String> themeSelector;
 
-    private final WebSocketClientService wsService = WebSocketClientService.getInstance();
-    private final Preferences prefs = Preferences.userNodeForPackage(SettingsController.class);
+    private final IWebSocketClient wsService;
+    private final Preferences prefs;
+
+    public SettingsController() {
+        this(WebSocketClientService.getInstance());
+    }
+
+    public SettingsController(IWebSocketClient wsService) {
+        this.wsService = wsService;
+        this.prefs = Preferences.userNodeForPackage(SettingsController.class);
+    }
+
     private Runnable onClose;
     private boolean listeningForKey = false;
     private final Set<KeyCode> pendingJumpKeys = new LinkedHashSet<>();

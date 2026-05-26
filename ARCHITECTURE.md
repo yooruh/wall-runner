@@ -1,4 +1,4 @@
-# WallRunner 架构文档
+# WallRunner v3.0 架构文档（UML建模优化版）
 
 ## 1. 设计原则
 
@@ -11,9 +11,14 @@
 
 ## 2. 模块职责
 
-### shared-core（Y 层）
+### shared-core（Y 层）— v3.0 接口化重构
 
-| 文件 | 职责 |
+**设计升级**：
+- `GamePhysics` (38178行) → 拆分为 `IPhysicsEngine` + `PhysicsEngine` + 12个子系统接口
+- 新增 `IEntity` 标记接口，所有实体实现统一抽象
+- 新增 `GameEventBus` 事件总线（Observer模式），解耦各子系统
+
+| 接口/文件 | 职责 |
 |------|------|
 | `GameConstants` | 所有数值常量的唯一可信源（画布尺寸、物理参数、颜色表、击退参数等） |
 | `GamePhysics` | 权威物理引擎，处理移动、碰撞、死亡、摄像机、难度递增、障碍物生成与回收 |
@@ -148,3 +153,74 @@
 5. **JavaFX 跨平台兼容性**：不同操作系统对 JavaFX 渲染管线支持有差异。建议使用 JavaFX 20+ LTS 版本，避免使用实验性 API；测试覆盖 Windows / macOS / Linux。
 6. **移动端**：当前为桌面端 JavaFX 应用，不涉及移动端。若未来移植，需重新评估渲染与输入策略。
 7. **WebSocket 大消息**：`java.net.http.WebSocket` 对大 JSON 会拆分为多帧，已在 `WebSocketClientService` 中使用 `StringBuilder` 累加分片处理。监控消息大小，必要时启用压缩。
+
+
+---
+
+## 4. UML 建模支持
+
+v3.0 所有重构均围绕 **便于 UML 建模** 展开：
+
+### 4.1 类图建模要素
+
+| 建模要素 | 代码体现 | 示例 |
+|---------|---------|------|
+| 泛化（Generalization） | `implements` 接口 | `Player implements IEntity` |
+| 实现（Realization） | `implements` 接口 | `PhysicsEngine implements IPhysicsEngine` |
+| 组合（Composition） | 构造器注入 | `PhysicsEngine` 组合 12 个子系统 |
+| 依赖（Dependency） | 方法参数/局部变量 | `GameController` 依赖 `IRenderer` |
+| 关联（Association） | 字段引用 | `GameState` 关联 `Player` |
+| 单例（Singleton） | `static final INSTANCE` | `GameEventBus`, `StateManager` |
+
+### 4.2 交互图建模要素
+
+| 建模要素 | 代码体现 | 示例 |
+|---------|---------|------|
+| 同步消息 | 普通方法调用 | `physics.update(state)` |
+| 返回消息 | 返回值 | `GameState` 从 `update()` 返回 |
+| 自调用 | 内部方法 | `StateManager.reconcile()` |
+| 条件分支 | `if/else` | 碰撞类型判断（alt片段） |
+| 并行处理 | `fork/join` | 击退处理与移动更新并行 |
+
+### 4.3 状态图建模要素
+
+| 建模要素 | 代码体现 | 示例 |
+|---------|---------|------|
+| 状态 | 字段组合 | `Player.active + jumping + knockedBack` |
+| 转换 | 方法调用 | `applyKnockback()` 触发状态变更 |
+| 复合状态 | 嵌套逻辑 | `Playing` 内含 `Normal/DifficultyUp` |
+| 初始/终止 | 构造器/析构 | `initState()` / `gameover` |
+
+### 4.4 活动图建模要素
+
+| 建模要素 | 代码体现 | 示例 |
+|---------|---------|------|
+| 活动节点 | 方法体 | `updateObstacles()` |
+| 判断节点 | `if` 语句 | `activePlayers.isEmpty()` |
+| 分叉/汇合 | 并行循环 | `for (Player p : activePlayers)` |
+| 分区 | 包边界 | `client.service` vs `shared.physics` |
+
+---
+
+## 5. 向后兼容性
+
+v3.0 通过 **Facade + 默认构造器** 保证零功能损失：
+
+1. `GamePhysics` 保留为 Facade，委托给 `PhysicsEngine`
+2. `GameController` 默认构造器自动组装所有服务
+3. 单例模式（`getInstance()`）保留，不影响现有调用
+4. 所有 FXML/CSS/资源文件未修改
+5. Maven 模块结构不变
+
+---
+
+## 6. 文档索引
+
+| 文档 | 路径 | 内容 |
+|------|------|------|
+| UML建模设计文档 | `docs/UML建模设计文档.md` | 15个UML图的核心设计内容 |
+| 用例图×3 | `docs/uml/usecase_*.puml` | PlantUML 用例图源码 |
+| 类图×3 | `docs/uml/class_*.puml` | PlantUML 类图源码 |
+| 交互图×3 | `docs/uml/sequence_*.puml` | PlantUML 时序图源码 |
+| 状态图×3 | `docs/uml/state_*.puml` | PlantUML 状态图源码 |
+| 活动图×3 | `docs/uml/activity_*.puml` | PlantUML 活动图源码 |

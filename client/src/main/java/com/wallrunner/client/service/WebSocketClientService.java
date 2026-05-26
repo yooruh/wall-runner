@@ -24,7 +24,7 @@ import java.util.function.Consumer;
  * - 心跳机制（每5秒 ping）。
  * - 单例模式，网络 I/O 与业务逻辑解耦。
  */
-public class WebSocketClientService {
+public class WebSocketClientService implements IWebSocketClient {
 
     private static final WebSocketClientService INSTANCE = new WebSocketClientService();
     public static WebSocketClientService getInstance() { return INSTANCE; }

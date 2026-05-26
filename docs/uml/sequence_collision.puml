@@ -1,0 +1,45 @@
+@startuml
+autonumber
+
+title WallRunner v3.0 — 玩家碰撞处理时序图
+
+participant "PhysicsEngine" as PE
+participant "MovementSystem" as MS
+participant "CollisionSystem" as CS
+participant "PlayerCollisionResolver" as PCR
+participant "KnockbackSystem" as KS
+participant "InvincibilitySystem" as IS
+participant "GameEventBus" as EB
+
+PE -> MS : updatePlayerMovement(player, obstacles, activePlayers)
+MS -> CS : rectIntersect() [攀爬碰撞检测]
+CS --> MS : collision result
+MS --> PE : blockedMap
+PE -> PCR : checkPlayerCollision(a, b)
+PCR -> CS : rectIntersect()
+CS --> PCR : true
+PCR -> PCR : resolvePlayerCollision(a, b)
+alt a jumping && !b jumping
+    PCR -> KS : applyKnockback(b, a.side)
+    KS -> KS : setKnockedBack(true)
+    KS -> KS : setInvincible(true, 2.5s)
+    KS --> PCR : knockback applied
+    PCR --> PE : collision resolved
+else both jumping
+    PCR -> KS : applyKnockback(a, opposite)
+    PCR -> KS : applyKnockback(b, opposite)
+    KS --> PCR : both knocked back
+    PCR --> PE : collision resolved
+end
+PE -> KS : processKnockback(player)
+KS --> PE : position/rotation updated
+PE -> IS : processInvincibility(player)
+IS --> PE : invincibility timer decremented
+PE -> EB : publish(CollisionEvent)
+EB --> PE : event dispatched
+
+note right of PE
+  碰撞检测 -> 碰撞解析 -> 击退处理 -> 无敌处理
+  事件总线解耦各子系统
+end note
+@enduml

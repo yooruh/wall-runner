@@ -1,0 +1,123 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+title WallRunner v3.0 — 客户端服务层类图
+
+package "com.wallrunner.client.service" {
+    interface IRenderer {
+        +bindCanvas(Canvas): void
+        +render(GameState, String, double, boolean, String): void
+        +spawnJumpParticles(double, double, String, double, double): void
+    }
+
+    interface IStateManager {
+        +setLocalPlayerId(String): void
+        +getLocalPlayerId(): String
+        +initLocalState(String): void
+        +getState(): GameState
+        +setState(GameState): void
+        +reconcile(GameState): void
+    }
+
+    interface IWebSocketClient {
+        +connect(String): boolean
+        +disconnect(): void
+        +isConnected(): boolean
+        +send(Map<String, Object>): void
+        +joinDedicated(String): void
+        +createRoom(String): void
+        +joinRoom(String, String): void
+        +sendInput(String): void
+        +sendState(GameState): void
+        +setOnStateReceived(Consumer<GameState>): void
+        +setOnMessage(Consumer<Map>): void
+    }
+
+    interface IInputHandler {
+        +attach(Scene): void
+        +setOnAction(Consumer<String>): void
+        +setOnSystem(Consumer<String>): void
+        +setJumpKeys(Set<KeyCode>): void
+        +onCanvasClick(): void
+    }
+
+    interface IGameLoop {
+        +setOnTick(Consumer<Double>): void
+        +start(): void
+        +stop(): void
+    }
+
+    class Renderer implements IRenderer
+    class StateManager implements IStateManager
+    class WebSocketClientService implements IWebSocketClient
+    class InputService implements IInputHandler
+    class GameLoopService implements IGameLoop
+}
+
+package "com.wallrunner.client.engine" {
+    interface ILocalPhysicsEngine {
+        +tick(GameState): void
+        +handleInput(GameState, String, String): void
+        +handleInput(Player, String): void
+        +startGame(GameState): void
+        +initState(GameState): void
+    }
+
+    interface IPredictor {
+        +predict(GameState, String, String): void
+        +predict(GameState, Player, String): GameState
+        +reconcile(GameState, GameState): void
+    }
+
+    class LocalPhysicsEngine implements ILocalPhysicsEngine
+    class Predictor implements IPredictor
+}
+
+package "com.wallrunner.client.controller" {
+    class GameController {
+        -ws: IWebSocketClient
+        -sm: IStateManager
+        -renderer: IRenderer
+        -input: IInputHandler
+        -loop: IGameLoop
+        -physics: ILocalPhysicsEngine
+        -predictor: IPredictor
+        +GameController()
+        +GameController(IWebSocketClient, IStateManager, IRenderer,
+                         IInputHandler, IGameLoop, ILocalPhysicsEngine, IPredictor)
+        +initialize(): void
+        +onSceneReady(Scene): void
+        +onRestart(): void
+    }
+
+    class MenuController {
+        -wsService: IWebSocketClient
+        -stateManager: IStateManager
+        +MenuController()
+        +MenuController(IWebSocketClient, IStateManager)
+    }
+
+    class SettingsController {
+        -ws: IWebSocketClient
+        +SettingsController()
+        +SettingsController(IWebSocketClient)
+    }
+}
+
+GameController --> IWebSocketClient
+GameController --> IStateManager
+GameController --> IRenderer
+GameController --> IInputHandler
+GameController --> IGameLoop
+GameController --> ILocalPhysicsEngine
+GameController --> IPredictor
+
+MenuController --> IWebSocketClient
+MenuController --> IStateManager
+SettingsController --> IWebSocketClient
+
+note right of GameController
+  依赖注入构造器
+  便于Mock测试与UML建模
+end note
+@enduml

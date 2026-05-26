@@ -1,0 +1,36 @@
+@startuml
+
+title WallRunner v3.0 — 玩家生命周期状态图
+
+[*] --> Idle : 初始化
+Idle --> Climbing : 游戏开始
+Climbing --> Jumping : 按下跳跃键
+Jumping --> Climbing : 碰到墙壁
+Climbing --> Blocked : 碰到障碍物
+Blocked --> Climbing : 障碍物移开
+Jumping --> KnockedBack : 被撞击
+Climbing --> KnockedBack : 被撞击
+KnockedBack --> Returning : 开始回归墙壁
+Returning --> Climbing : 回到墙壁
+KnockedBack --> Dead : 击退超时+掉出画面
+Climbing --> Dead : 掉出死亡线
+Jumping --> Dead : 掉出死亡线
+Blocked --> Dead : 掉出死亡线
+Dead --> Spectating : 还有生命
+Spectating --> Climbing : 按跳跃键重生
+Dead --> Eliminated : 生命归零
+Eliminated --> [*] : 游戏结束
+
+note right of KnockedBack
+  击退阶段：
+  1. 弹开墙壁自由下落
+  2. 缓慢回归墙壁
+  3. 旋转动画恢复
+end note
+
+note right of Spectating
+  旁观模式：
+  摄像机跟随最靠前存活玩家
+  按跳跃键可重生
+end note
+@enduml

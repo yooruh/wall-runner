@@ -1,0 +1,96 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+title WallRunner v3.0 — 物理引擎子系统类图
+
+package "com.wallrunner.shared.physics" {
+    interface IPhysicsEngine {
+        +initState(GameState): void
+        +update(GameState): void
+        +handleInput(Player, String): void
+        +startGame(GameState): void
+        +initJoiningPlayer(GameState, Player): void
+    }
+
+    class PhysicsEngine implements IPhysicsEngine {
+        -movementSystem: IMovementSystem
+        -collisionDetector: ICollisionDetector
+        -obstacleManager: IObstacleManager
+        -collectibleManager: ICollectibleManager
+        -cameraSystem: ICameraSystem
+        -knockbackSystem: IKnockbackSystem
+        -invincibilitySystem: IInvincibilitySystem
+        -deathSystem: IDeathSystem
+        -scoreCalculator: IScoreCalculator
+        -difficultyManager: IDifficultyManager
+        -playerCollisionResolver: IPlayerCollisionResolver
+        -inputHandler: IInputHandler
+        -eventBus: GameEventBus
+        +createDefault(GameEventBus): PhysicsEngine
+    }
+
+    class GamePhysics {
+        -ENGINE: IPhysicsEngine
+        +initState(GameState): void
+        +update(GameState): void
+        +handleInput(Player, String): void
+        +startGame(GameState): void
+        +initJoiningPlayer(GameState, Player): void
+    }
+}
+
+package "com.wallrunner.shared.physics.subsystem" {
+    interface IMovementSystem
+    interface ICollisionDetector
+    interface IObstacleManager
+    interface ICollectibleManager
+    interface ICameraSystem
+    interface IKnockbackSystem
+    interface IInvincibilitySystem
+    interface IDeathSystem
+    interface IScoreCalculator
+    interface IDifficultyManager
+    interface IPlayerCollisionResolver
+    interface IInputHandler
+
+    class CollisionSystem implements ICollisionDetector
+    class MovementSystem implements IMovementSystem
+    class ObstacleManager implements IObstacleManager
+    class CollectibleManager implements ICollectibleManager
+    class CameraSystem implements ICameraSystem
+    class KnockbackSystem implements IKnockbackSystem
+    class InvincibilitySystem implements IInvincibilitySystem
+    class DeathSystem implements IDeathSystem
+    class ScoreSystem implements IScoreCalculator
+    class DifficultyManager implements IDifficultyManager
+    class PlayerCollisionResolver implements IPlayerCollisionResolver
+    class InputHandler implements IInputHandler
+}
+
+IPhysicsEngine <|.. PhysicsEngine
+PhysicsEngine --> IMovementSystem : uses
+PhysicsEngine --> ICollisionDetector : uses
+PhysicsEngine --> IObstacleManager : uses
+PhysicsEngine --> ICollectibleManager : uses
+PhysicsEngine --> ICameraSystem : uses
+PhysicsEngine --> IKnockbackSystem : uses
+PhysicsEngine --> IInvincibilitySystem : uses
+PhysicsEngine --> IDeathSystem : uses
+PhysicsEngine --> IScoreCalculator : uses
+PhysicsEngine --> IDifficultyManager : uses
+PhysicsEngine --> IPlayerCollisionResolver : uses
+PhysicsEngine --> IInputHandler : uses
+
+GamePhysics ..> PhysicsEngine : delegates
+
+note right of PhysicsEngine
+  Facade + 组合模式
+  12个子系统通过接口解耦
+end note
+
+note right of GamePhysics
+  兼容门面（Facade）
+  向后兼容v2.0调用方
+  @deprecated
+end note
+@enduml

@@ -1,0 +1,42 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+title WallRunner v3.0 — 联机游戏用例图
+
+actor "客户端A" as C1
+actor "客户端B" as C2
+actor "公共服务器" as DS
+actor "房主客户端" as HC
+
+rectangle "网络联机子系统" {
+    usecase "建立WebSocket连接" as UC_NET1
+    usecase "发送玩家输入" as UC_NET2
+    usecase "接收权威状态" as UC_NET3
+    usecase "本地预测" as UC_NET4
+    usecase "状态调和" as UC_NET5
+    usecase "心跳检测" as UC_NET6
+    usecase "掉线重连" as UC_NET7
+    usecase "房间消息转发" as UC_NET8
+
+    UC_NET2 ..> UC_NET1 : <<include>>
+    UC_NET3 ..> UC_NET1 : <<include>>
+    UC_NET4 ..> UC_NET2 : <<extend>>
+    UC_NET5 ..> UC_NET3 : <<extend>>
+    UC_NET7 ..> UC_NET6 : <<extend>>
+}
+
+C1 --> UC_NET1
+C1 --> UC_NET2
+C1 --> UC_NET3
+C2 --> UC_NET1
+C2 --> UC_NET2
+C2 --> UC_NET3
+DS --> UC_NET3 : 广播
+HC --> UC_NET8
+
+note right of UC_NET5
+  reconcile(): 本地玩家插值校正
+  其他玩家直接覆盖
+end note
+@enduml

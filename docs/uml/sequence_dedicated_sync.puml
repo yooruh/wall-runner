@@ -1,0 +1,47 @@
+@startuml
+autonumber
+
+title WallRunner v3.0 — Dedicated模式状态同步时序图
+
+actor "客户端A" as C1
+actor "客户端B" as C2
+participant "WebSocketClientService" as WS1
+participant "WebSocketClientService" as WS2
+participant "GameWebSocketHandler" as GWH
+participant "DedicatedService" as DS
+participant "PhysicsEngine" as PE
+participant "StateManager" as SM1
+participant "StateManager" as SM2
+participant "Renderer" as R1
+participant "Renderer" as R2
+
+C1 -> WS1 : sendInput("jump")
+WS1 -> GWH : WebSocket msg (type=input)
+GWH -> DS : onClientInput(session, "jump")
+DS -> PE : handleInput(player, "jump")
+PE --> DS : player state updated
+DS -> DS : update() [8ms tick]
+DS -> PE : update(gameState)
+PE --> DS : full GameState
+DS -> GWH : broadcastState()
+GWH -> WS1 : send state JSON
+GWH -> WS2 : send state JSON
+WS1 -> SM1 : onStateReceived(state)
+SM1 -> SM1 : reconcile(authState)
+SM1 --> R1 : render()
+WS2 -> SM2 : onStateReceived(state)
+SM2 -> SM2 : reconcile(authState)
+SM2 --> R2 : render()
+R1 --> C1 : 120 FPS 画面
+R2 --> C2 : 120 FPS 画面
+
+note right of SM1
+  reconcile(): 本地玩家插值校正
+  其他玩家直接覆盖
+end note
+
+note right of DS
+  8ms tick 物理
+  16ms 广播 STATE
+end note
+@enduml

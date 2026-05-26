@@ -23,7 +23,7 @@ import java.util.List;
  * - 支持粒子特效（跳跃尾迹）。
  * - 预留：可收集物渲染、特效渲染、技能可视化。
  */
-public class Renderer {
+public class Renderer implements IRenderer {
 
     private Canvas canvas;
     private GraphicsContext gc;

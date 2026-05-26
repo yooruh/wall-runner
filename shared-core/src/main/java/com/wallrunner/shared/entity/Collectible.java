@@ -6,7 +6,7 @@ package com.wallrunner.shared.entity;
  * 预留扩展：金币、宝石、道具等可收集物品。
  * 当前版本仅定义结构，未在物理引擎中处理碰撞。
  */
-public class Collectible {
+public class Collectible implements IEntity {
 
     private double x;
     private double y;

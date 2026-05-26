@@ -7,7 +7,7 @@ package com.wallrunner.shared.entity;
  * - 纯数据结构，无业务逻辑。
  * - 支持多种障碍物类型与动态行为预留。
  */
-public class Obstacle {
+public class Obstacle implements IEntity {
 
     private double x;
     private double y;

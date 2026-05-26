@@ -1,6 +1,8 @@
 package com.wallrunner.client.controller;
 
 import com.wallrunner.client.ClientApplication;
+import com.wallrunner.client.service.IStateManager;
+import com.wallrunner.client.service.IWebSocketClient;
 import com.wallrunner.client.service.StateManager;
 import com.wallrunner.client.service.WebSocketClientService;
 import javafx.application.Platform;
@@ -32,8 +34,17 @@ public class MenuController {
     @FXML private Button btnCopyRoom;
     @FXML private javafx.scene.control.Label roomCodeLabel;
 
-    private final WebSocketClientService wsService = WebSocketClientService.getInstance();
-    private final StateManager stateManager = StateManager.getInstance();
+    private final IWebSocketClient wsService;
+    private final IStateManager stateManager;
+
+    public MenuController() {
+        this(WebSocketClientService.getInstance(), StateManager.getInstance());
+    }
+
+    public MenuController(IWebSocketClient wsService, IStateManager stateManager) {
+        this.wsService = wsService;
+        this.stateManager = stateManager;
+    }
 
     @FXML
     private void initialize() {
