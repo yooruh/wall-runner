@@ -40,10 +40,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final IDedicatedService dedicatedService;
     private final IRelayService relayService;
 
-    public GameWebSocketHandler() {
-        this(new SessionManager(), new RoomManager(), new DedicatedService(), new RelayService());
-    }
-
     public GameWebSocketHandler(ISessionManager sessionManager,
                                 IRoomManager roomManager,
                                 IDedicatedService dedicatedService,

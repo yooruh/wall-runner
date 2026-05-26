@@ -151,6 +151,10 @@ public class DedicatedService implements IDedicatedService {
         }
     }
 
+    public GameState getGameState() {
+        return roomManager.getRoom(MAIN_ROOM_ID);
+    }
+
     private void broadcastState(String roomId, GameState state) {
         try {
             String payloadJson = objectMapper.writeValueAsString(state);

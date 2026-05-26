@@ -15,6 +15,7 @@ public interface IStateManager {
     GameState getState();
     void setState(GameState newState);
     void reconcile(GameState auth);
+    void reset();
     String loadSavedName();
     void saveName(String name);
 }

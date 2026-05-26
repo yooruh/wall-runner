@@ -224,7 +224,7 @@ public class WebSocketClientService implements IWebSocketClient {
         }
     }
 
-    private void send(Map<String, Object> msg) {
+    public void send(Map<String, Object> msg) {
         if (!connected || webSocket == null) return;
         try {
             String json = mapper.writeValueAsString(msg);
