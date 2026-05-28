@@ -1,17 +1,18 @@
 package com.wallrunner.server.service;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wallrunner.shared.entity.GameState;
-import com.wallrunner.shared.entity.Player;
-import com.wallrunner.shared.physics.GamePhysics;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wallrunner.shared.entity.GameState;
+import com.wallrunner.shared.entity.Player;
+import com.wallrunner.shared.physics.GamePhysics;
 
 /**
  * 公共服务器模式（Dedicated）：服务端运行权威物理，向所有客户端广播 STATE。
@@ -33,6 +34,7 @@ public class DedicatedService implements IDedicatedService {
         this.sessionManager = sessionManager;
     }
 
+    @Override
     public synchronized String getOrCreateRoom() {
         if (!roomManager.isRoomExists(MAIN_ROOM_ID)) {
             roomManager.createRoom(MAIN_ROOM_ID, "SERVER");
@@ -45,10 +47,12 @@ public class DedicatedService implements IDedicatedService {
         return MAIN_ROOM_ID;
     }
 
+    @Override
     public boolean isRoomActive(String roomId) {
         return Boolean.TRUE.equals(activeDedicated.get(roomId));
     }
 
+    @Override
     public void join(String roomId, Player player, WebSocketSession session) {
         GameState state = roomManager.getRoom(roomId);
         boolean isLateJoin = isRoomActive(roomId) && state != null && "playing".equals(state.getPhase());
@@ -62,6 +66,7 @@ public class DedicatedService implements IDedicatedService {
         }
     }
 
+    @Override
     public void startGame(String roomId) {
         GameState state = roomManager.getRoom(roomId);
         if (state != null) {
@@ -70,6 +75,7 @@ public class DedicatedService implements IDedicatedService {
         }
     }
 
+    @Override
     public void handleInput(String roomId, String playerId, String action) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;
@@ -88,6 +94,7 @@ public class DedicatedService implements IDedicatedService {
     private final Map<String, Integer> broadcastCounters = new ConcurrentHashMap<>();
 
     @Scheduled(fixedRate = 8)
+    @Override
     public void tick() {
         for (Map.Entry<String, Boolean> entry : activeDedicated.entrySet()) {
             if (!Boolean.TRUE.equals(entry.getValue())) continue;
@@ -134,7 +141,7 @@ public class DedicatedService implements IDedicatedService {
     }
 
     private void sendPing(String roomId, String playerId) {
-        // 找到玩家的 WebSocketSession 并发送 ping
+        // 向房间内所有在线会话发送 ping（客户端根据自身的 playerId 回复 pong）
         for (org.springframework.web.socket.WebSocketSession s : sessionManager.getAllSessions().values()) {
             if (roomId.equals(sessionManager.getRoomId(s.getId())) && s.isOpen()) {
                 try {
@@ -147,11 +154,11 @@ public class DedicatedService implements IDedicatedService {
                 } catch (Exception e) {
                     System.err.println("[Dedicated] Ping send failed: " + e.getMessage());
                 }
-                break;
             }
         }
     }
 
+    @Override
     public GameState getGameState() {
         return roomManager.getRoom(MAIN_ROOM_ID);
     }

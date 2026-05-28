@@ -29,12 +29,14 @@ public class RelayService implements IRelayService {
         this.sessionManager = sessionManager;
     }
 
+    @Override
     public String createRoom(String hostSessionId) {
         String roomId = roomManager.createRoom(hostSessionId);
         sessionManager.bindRoom(hostSessionId, roomId);
         return roomId;
     }
 
+    @Override
     public String createRoom(String hostSessionId, String customRoomId) {
         if (customRoomId != null && !customRoomId.isEmpty()) {
             if (roomManager.isRoomExists(customRoomId)) {
@@ -47,6 +49,7 @@ public class RelayService implements IRelayService {
         return createRoom(hostSessionId);
     }
 
+    @Override
     public boolean joinRoom(String roomId, Player player, WebSocketSession session) {
         boolean ok = roomManager.joinRoom(roomId, player);
         if (ok) {
@@ -72,6 +75,7 @@ public class RelayService implements IRelayService {
     }
 
     @SuppressWarnings("UseSpecificCatch")
+    @Override
     public void broadcastFromHost(String roomId, Map<String, Object> msg, WebSocketSession sender) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;
@@ -106,6 +110,7 @@ public class RelayService implements IRelayService {
     }
 
     @SuppressWarnings("UseSpecificCatch")
+    @Override
     public void relayInput(String roomId, Map<String, Object> msg, WebSocketSession sender) {
         GameState state = roomManager.getRoom(roomId);
         if (state == null) return;
@@ -121,6 +126,7 @@ public class RelayService implements IRelayService {
         }
     }
 
+    @Override
     public void leave(String sessionId) {
         String roomId = sessionManager.getRoomId(sessionId);
         if (roomId != null) {

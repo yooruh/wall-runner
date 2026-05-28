@@ -1,29 +1,20 @@
 @startuml
 
-title WallRunner v3.0 — 死亡重生活动图
+title WallRunner v3.0 — 死亡重生泳道图
 
+|游戏引擎|
 start
-
 :玩家Y坐标 > 死亡线;
 :DeathSystem.checkDeathLine()触发;
-
 :lives--;
 
 if (lives <= 0?) then (是)
   :保存最高分;
   :active = false;
   :spectator = true;
-  :切换到观战摄像机;
-  if (按跳跃键?) then (是)
-    :无法重生;
-    :提示"生命已耗尽";
-  else (否)
-    :继续观战;
-  endif
   :checkAllDead();
   if (所有玩家死亡?) then (是)
     :phase = "gameover";
-    :显示排行榜;
   else (否)
   endif
   stop
@@ -32,22 +23,35 @@ endif
 
 :计算重生位置;
 :spawnY = fallbackY + 300;
-
 :重置状态;
-note right
-  - jumping = false
-  - vy = 0
-  - 换边
-  - blocked = false
-  - paused = false
-  - knockedBack = false
-  - invincible = true (2秒)
-end note
+:继续游戏;
+
+|状态管理|
+if (lives <= 0?) then (是)
+  :Player.spectator = true;
+  :GameState.phase = "gameover";
+  stop
+else (否)
+  :Player.invincible = true;
+  :Player.side 换边;
+  :Player.y = spawnY;
+endif
+
+|客户端表现|
+if (lives <= 0?) then (是)
+  :切换到观战摄像机;
+  if (按跳跃键?) then (是)
+    :提示"生命已耗尽";
+  else (否)
+    :继续观战;
+  endif
+  :显示排行榜;
+  stop
+else (否)
+endif
 
 :重置摄像机;
 :spawnCamY = spawnY - offset;
-
-:继续游戏;
 
 stop
 @enduml

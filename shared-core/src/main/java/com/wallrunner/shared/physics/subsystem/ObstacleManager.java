@@ -42,16 +42,13 @@ public class ObstacleManager implements IObstacleManager {
     public void checkSpawn(GameState state) {
         double displayCamY = state.getCameraY();
         double dist = state.getNextSpawnCameraY() - displayCamY;
-        if (dist > 0) return;
+        // 摄像机尚未到达生成线（nextSpawnCameraY 更负）时不生成
+        if (dist < 0) return;
         spawnObstacle(state, displayCamY);
         state.setNextSpawnCameraY(displayCamY - random((int) SPAWN_MIN_GAP, (int) SPAWN_MAX_GAP));
     }
 
     private void spawnObstacle(GameState state, double cameraY) {
-        if (!state.getObstacles().isEmpty()) {
-            Obstacle last = state.getObstacles().get(state.getObstacles().size() - 1);
-            if (last.getY() - (cameraY - SPAWN_AHEAD) < 60) return;
-        }
         boolean isWallSpike = Math.random() < 0.5;
         double spawnY = cameraY - SPAWN_AHEAD;
         if (isWallSpike) {

@@ -1,12 +1,16 @@
 package com.wallrunner.shared.physics.subsystem;
 
-import com.wallrunner.shared.constants.GameConstants;
-import com.wallrunner.shared.entity.Obstacle;
-import com.wallrunner.shared.entity.Player;
-
 import java.util.List;
 
-import static com.wallrunner.shared.constants.GameConstants.*;
+import static com.wallrunner.shared.constants.GameConstants.CANVAS_WIDTH;
+import static com.wallrunner.shared.constants.GameConstants.CLIMB_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_B;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SPEED_MULTIPLIER;
+import static com.wallrunner.shared.constants.GameConstants.GRAVITY;
+import static com.wallrunner.shared.constants.GameConstants.JUMP_SPEED;
+import static com.wallrunner.shared.constants.GameConstants.WALL_WIDTH;
+import com.wallrunner.shared.entity.Obstacle;
+import com.wallrunner.shared.entity.Player;
 
 /**
  * 玩家移动系统实现。

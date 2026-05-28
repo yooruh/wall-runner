@@ -1,46 +1,45 @@
 @startuml
 
-title WallRunner v3.0 — 游戏主循环活动图
+title WallRunner v3.0 — 游戏主循环泳道图
 
+|主控调度|
 start
-
 :获取 activePlayers;
 if (activePlayers为空?) then (是)
   :checkAllDead();
-  stop
+  detach
 else (否)
 endif
+:frames++;
 
+|环境管理|
 :updateObstacles();
-
-fork
-  :processKnockback(每个玩家);
-  :processInvincibility(每个玩家);
-fork again
-  :updatePlayerMovement(每个玩家);
-  :检测玩家间碰撞;
-  if (发生碰撞?) then (是)
-    :resolvePlayerCollision();
-    if (一方跳跃?) then (是)
-      :applyKnockback();
-    else (否)
-      :overlap分离;
-    endif
-  else (否)
-  endif
-end fork
-
-:updatePlayerCameras();
-:updateDisplayCamera();
+:checkSpawn();
 :checkDeathLine();
 :checkAllDead();
 :applyTimeBonus();
 :recalculateScores();
-:checkSpawn();
 :updateDifficulty();
 :updateCollectibles();
 
-:frames++;
+|物理运动|
+:processKnockback(每个玩家);
+:processInvincibility(每个玩家);
+:updatePlayerMovement(每个玩家);
+:updatePlayerCameras();
+:updateDisplayCamera();
+
+|碰撞交互|
+:检测玩家间碰撞;
+if (发生碰撞?) then (是)
+  :resolvePlayerCollision();
+  if (一方跳跃?) then (是)
+    :applyKnockback();
+  else (否)
+    :overlap分离;
+  endif
+else (否)
+endif
 
 stop
 @enduml

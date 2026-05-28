@@ -1,11 +1,12 @@
 package com.wallrunner.shared.physics.subsystem;
 
+import static com.wallrunner.shared.constants.GameConstants.CAMERA_OFFSET_RATIO;
+import static com.wallrunner.shared.constants.GameConstants.CANVAS_HEIGHT;
+import static com.wallrunner.shared.constants.GameConstants.CANVAS_WIDTH;
+import static com.wallrunner.shared.constants.GameConstants.DEATH_LINE_OFFSET;
+import static com.wallrunner.shared.constants.GameConstants.WALL_WIDTH;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
-
-import java.util.Comparator;
-
-import static com.wallrunner.shared.constants.GameConstants.*;
 
 /**
  * 死亡与重生系统实现。

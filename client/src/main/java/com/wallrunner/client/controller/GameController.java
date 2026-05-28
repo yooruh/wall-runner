@@ -1,16 +1,20 @@
 package com.wallrunner.client.controller;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.prefs.Preferences;
+
 import com.wallrunner.client.ClientApplication;
 import com.wallrunner.client.engine.ILocalPhysicsEngine;
 import com.wallrunner.client.engine.IPredictor;
 import com.wallrunner.client.engine.LocalPhysicsEngine;
 import com.wallrunner.client.engine.Predictor;
+import com.wallrunner.client.service.GameLoopService;
 import com.wallrunner.client.service.IGameLoop;
 import com.wallrunner.client.service.IInputHandler;
 import com.wallrunner.client.service.IRenderer;
 import com.wallrunner.client.service.IStateManager;
 import com.wallrunner.client.service.IWebSocketClient;
-import com.wallrunner.client.service.GameLoopService;
 import com.wallrunner.client.service.InputService;
 import com.wallrunner.client.service.Renderer;
 import com.wallrunner.client.service.StateManager;
@@ -18,7 +22,7 @@ import com.wallrunner.client.service.WebSocketClientService;
 import com.wallrunner.shared.constants.GameConstants;
 import com.wallrunner.shared.entity.GameState;
 import com.wallrunner.shared.entity.Player;
-import com.wallrunner.shared.physics.GamePhysics;
+
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -29,12 +33,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
-
-import java.util.Map;
-import java.util.Set;
-import java.util.prefs.Preferences;
+import javafx.scene.layout.VBox;
 
 /**
  * 游戏场景主控制器。

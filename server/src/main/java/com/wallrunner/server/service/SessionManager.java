@@ -46,8 +46,4 @@ public class SessionManager implements ISessionManager {
     public boolean hasSession(String sessionId) {
         return sessions.containsKey(sessionId);
     }
-
-    public boolean hasSession(String sessionId) {
-        return sessions.containsKey(sessionId);
-    }
 }

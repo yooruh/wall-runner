@@ -58,10 +58,10 @@ public class GameState {
        ============================================================ */
 
     public Map<String, Player> getPlayers() { return players; }
-    public void setPlayers(Map<String, Player> players) { this.players = players; }
+    public void setPlayers(Map<String, Player> players) { this.players = players != null ? players : new ConcurrentHashMap<>(); }
 
     public List<Obstacle> getObstacles() { return obstacles; }
-    public void setObstacles(List<Obstacle> obstacles) { this.obstacles = obstacles; }
+    public void setObstacles(List<Obstacle> obstacles) { this.obstacles = obstacles != null ? obstacles : new ArrayList<>(); }
 
     public String getPhase() { return phase; }
     public void setPhase(String phase) { this.phase = phase; }
@@ -92,10 +92,10 @@ public class GameState {
        ============================================================ */
 
     public List<Collectible> getCollectibles() { return collectibles; }
-    public void setCollectibles(List<Collectible> collectibles) { this.collectibles = collectibles; }
+    public void setCollectibles(List<Collectible> collectibles) { this.collectibles = collectibles != null ? collectibles : new ArrayList<>(); }
 
     public List<String> getActiveEffects() { return activeEffects; }
-    public void setActiveEffects(List<String> activeEffects) { this.activeEffects = activeEffects; }
+    public void setActiveEffects(List<String> activeEffects) { this.activeEffects = activeEffects != null ? activeEffects : new ArrayList<>(); }
 
     public int getDifficultyLevel() { return difficultyLevel; }
     public void setDifficultyLevel(int difficultyLevel) { this.difficultyLevel = difficultyLevel; }

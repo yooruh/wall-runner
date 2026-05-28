@@ -65,7 +65,7 @@ public class StateManager implements IStateManager {
 
         state.setPhase(auth.getPhase());
         state.setFrames(auth.getFrames());
-        state.setObstacles(auth.getObstacles());
+        state.setObstacles(auth.getObstacles() != null ? new java.util.ArrayList<>(auth.getObstacles()) : new java.util.ArrayList<>());
         state.setCameraY(auth.getCameraY());
         state.setCameraTargetY(auth.getCameraTargetY());
         state.setNextSpawnCameraY(auth.getNextSpawnCameraY());
@@ -74,14 +74,15 @@ public class StateManager implements IStateManager {
         state.setTimeBonusAccumulator(auth.getTimeBonusAccumulator());
 
         // 预留：同步可收集物、特效、难度
-        state.setCollectibles(auth.getCollectibles());
-        state.setActiveEffects(auth.getActiveEffects());
+        state.setCollectibles(auth.getCollectibles() != null ? new java.util.ArrayList<>(auth.getCollectibles()) : new java.util.ArrayList<>());
+        state.setActiveEffects(auth.getActiveEffects() != null ? new java.util.ArrayList<>(auth.getActiveEffects()) : new java.util.ArrayList<>());
         state.setDifficultyLevel(auth.getDifficultyLevel());
         state.setDifficultyAccumulator(auth.getDifficultyAccumulator());
         state.setNextCollectibleSpawnY(auth.getNextCollectibleSpawnY());
 
         Map<String, Player> localPlayers = state.getPlayers();
         Map<String, Player> authPlayers = auth.getPlayers();
+        if (authPlayers == null) return;
 
         for (Map.Entry<String, Player> e : authPlayers.entrySet()) {
             String pid = e.getKey();

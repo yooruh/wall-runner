@@ -18,8 +18,8 @@ public final class GameConstants {
     public static final int CANVAS_HEIGHT = 600;
     public static final int WALL_WIDTH = 60;
     public static final int PLAYER_SIZE = 30;
-    public static final double JUMP_SPEED = 6;
-    public static final double GRAVITY = 0.36;
+    public static final double JUMP_SPEED = 5;
+    public static final double GRAVITY = 0.35;
     public static final double CLIMB_SPEED = 1.8;
     public static final double OBSTACLE_SPEED = 2.25;
     public static final int BRICK_W = 40;
@@ -88,12 +88,12 @@ public final class GameConstants {
     public static final String COLLECTIBLE_SHIELD = "shield";
 
     // 收集物系统 A/B/C
-    public static final String COLLECTIBLE_A = "A";  // 无敌10秒（彩虹闪烁）
-    public static final String COLLECTIBLE_B = "B";  // 加速飞行10秒（吹风粒子）
+    public static final String COLLECTIBLE_A = "A";  // 无敌15秒（彩虹闪烁）
+    public static final String COLLECTIBLE_B = "B";  // 加速飞行15秒（吹风粒子）
     public static final String COLLECTIBLE_C = "C";  // 加一条命（满命不加）
     public static final int COLLECTIBLE_MATCH_COUNT = 3;  // 集齐3个同类触发技能
-    public static final double COLLECTIBLE_INVINCIBLE_DURATION = 10.0;  // A×3 无敌持续秒数
-    public static final double COLLECTIBLE_SPEED_DURATION = 10.0;       // B×3 加速飞行持续秒数
+    public static final double COLLECTIBLE_INVINCIBLE_DURATION = 15.0;  // A×3 无敌持续秒数
+    public static final double COLLECTIBLE_SPEED_DURATION = 15.0;       // B×3 加速飞行持续秒数
     public static final double COLLECTIBLE_SPEED_MULTIPLIER = 2.5;      // B×3 加速倍率
     public static final double COLLECTIBLE_SPAWN_INTERVAL = 300.0;      // 每300像素高度生成一个收集物
     public static final double COLLECTIBLE_SIZE = 22.0;                 // 收集物尺寸

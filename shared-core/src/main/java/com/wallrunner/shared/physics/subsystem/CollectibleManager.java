@@ -1,14 +1,24 @@
 package com.wallrunner.shared.physics.subsystem;
 
-import com.wallrunner.shared.constants.GameConstants;
-import com.wallrunner.shared.entity.Collectible;
-import com.wallrunner.shared.entity.GameState;
-import com.wallrunner.shared.entity.Player;
-
 import java.util.List;
 import java.util.Random;
 
-import static com.wallrunner.shared.constants.GameConstants.*;
+import static com.wallrunner.shared.constants.GameConstants.CANVAS_HEIGHT;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_A;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_B;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_C;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_INVINCIBLE_DURATION;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_MATCH_COUNT;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SIZE;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SPAWN_INTERVAL;
+import static com.wallrunner.shared.constants.GameConstants.COLLECTIBLE_SPEED_DURATION;
+import static com.wallrunner.shared.constants.GameConstants.MAX_LIVES;
+import static com.wallrunner.shared.constants.GameConstants.RECYCLE_LINE_OFFSET;
+import static com.wallrunner.shared.constants.GameConstants.SAFE_LEFT;
+import static com.wallrunner.shared.constants.GameConstants.SAFE_RIGHT;
+import com.wallrunner.shared.entity.Collectible;
+import com.wallrunner.shared.entity.GameState;
+import com.wallrunner.shared.entity.Player;
 
 /**
  * 收集物管理系统实现。
